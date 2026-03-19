@@ -1,2 +1,8 @@
+# OS
 .DS_Store
+
+# Dependencies
 node_modules/
+
+# Slides (drawio / PDF — SpeakerDeck に手動アップ、Git 管理外)
+slides/
