@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubernetes Probe 入門 — 3種類のヘルスチェック完全理解</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0f172a;
+      --surface:  #1e293b;
+      --surface2: #334155;
+      --text:     #e2e8f0;
+      --muted:    #94a3b8;
+      --border:   #475569;
+      --accent:   #38bdf8;
+      --slide-w:  1280px;
+      --slide-h:  720px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #000;
+      font-family: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* ── Viewport container ── */
+    .deck-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .deck {
+      width: var(--slide-w);
+      height: var(--slide-h);
+      position: relative;
+      overflow: hidden;
+      transform-origin: center center;
+    }
+
+    /* ── Base slide ── */
+    .slide {
+      width: var(--slide-w);
+      height: var(--slide-h);
+      background: var(--bg);
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: none;
+      flex-direction: column;
+      padding: 60px 80px;
+    }
+    .slide.active { display: flex; }
+
+    /* ══ Slide types ══════════════════════════════════════════════════════ */
+
+    /* -- Title slide -- */
+    .slide--title {
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .slide--title .slide-title {
+      font-size: 48px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.35;
+      margin-bottom: 24px;
+    }
+    .slide--title .slide-subtitle {
+      font-size: 26px;
+      color: var(--muted);
+    }
+    .slide--title .slide-meta {
+      margin-top: 48px;
+      font-size: 18px;
+      color: var(--muted);
+    }
+
+    /* -- Content slide -- */
+    .slide--content .slide-header {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      padding-bottom: 20px;
+      margin-bottom: 32px;
+      border-bottom: 2px solid var(--surface2);
+      flex-shrink: 0;
+    }
+    .slide--content .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* -- Section slide -- */
+    .slide--section {
+      align-items: center;
+      justify-content: center;
+      background: var(--surface);
+    }
+    .slide--section .section-number {
+      font-size: 18px;
+      color: var(--accent);
+      letter-spacing: 0.2em;
+      margin-bottom: 16px;
+    }
+    .slide--section .section-title {
+      font-size: 40px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.35;
+    }
+
+    /* -- Two-column -- */
+    .slide--two-col .slide-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+    }
+    .slide-col-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 16px;
+    }
+
+    /* ══ Content components ═══════════════════════════════════════════════ */
+
+    /* Bullet list */
+    .slide-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .slide-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      font-size: 24px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .slide-list li::before {
+      content: '▶';
+      color: var(--accent);
+      font-size: 14px;
+      margin-top: 7px;
+      flex-shrink: 0;
+    }
+    .slide-list .note {
+      display: block;
+      font-size: 18px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Code block */
+    .slide-code {
+      background: #080d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px 28px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 18px;
+      line-height: 1.65;
+      color: #e2e8f0;
+      overflow: auto;
+    }
+
+    /* Highlight box */
+    .slide-highlight {
+      background: var(--surface);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 20px 24px;
+      font-size: 22px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+
+    /* Table */
+    .slide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 22px;
+    }
+    .slide-table th {
+      background: var(--surface2);
+      color: var(--accent);
+      padding: 12px 20px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .slide-table td {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .slide-table tr:last-child td {
+      border-bottom: none;
+    }
+    .slide-table .tag {
+      display: inline-block;
+      background: var(--surface2);
+      color: var(--accent);
+      font-size: 14px;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    /* ══ Progress bar ═══════════════════════════════════════════════════ */
+    .progress {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 0%;
+      height: 4px;
+      background: var(--accent);
+      transition: width 0.25s ease;
+      z-index: 100;
+    }
+
+    /* ══ Navigation ═════════════════════════════════════════════════════ */
+    .nav {
+      position: fixed;
+      bottom: 20px;
+      right: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+    }
+    .nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+      line-height: 1;
+    }
+    .nav-btn:hover { background: var(--surface2); }
+    .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .nav-counter {
+      font-size: 13px;
+      color: var(--muted);
+      min-width: 48px;
+      text-align: center;
+    }
+
+    /* ══ Print / PDF ═════════════════════════════════════════════════════ */
+    @media print {
+      body {
+        background: var(--bg);
+        overflow: visible;
+      }
+      .deck-container {
+        display: block;
+        width: auto;
+        height: auto;
+      }
+      .deck {
+        width: 1280px;
+        height: 720px;
+        position: static;
+        overflow: visible;
+        transform: none !important;
+      }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        position: static;
+        width: 1280px;
+        height: 720px;
+      }
+      .slide:last-child { page-break-after: avoid; }
+      .progress,
+      .nav { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="deck-container">
+  <div class="deck" id="deck">
+
+    <!-- ===== SLIDE 1: TITLE ===== -->
+    <section class="slide slide--title active">
+      <div class="slide-title">Kubernetes Probe 入門<br>3種類のヘルスチェック完全理解</div>
+      <div class="slide-subtitle">Readiness / Liveness / Startup Probe</div>
+      <div class="slide-meta">2026-03 · Kubernetes Foundation</div>
+    </section>
+
+    <!-- ===== SLIDE 2: なぜProbeが必要か ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">Probeが必要な理由 — コンテナ運用の3つのリスク</div>
+      <div class="slide-body">
+        <ul class="slide-list">
+          <li>
+            起動中のコンテナにリクエストが流れる
+            <span class="note">DB接続が完了していないのにトラフィックが到達→エラーが発生</span>
+          </li>
+          <li>
+            プロセスが死んでいても気づかない
+            <span class="note">ハングアップ・メモリリークで応答不能になっても自動復旧しない</span>
+          </li>
+          <li>
+            起動に時間がかかるアプリが誤判定される
+            <span class="note">遅い起動をヘルスチェック失敗と見なして再起動ループに陥る</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 3: SECTION ===== -->
+    <section class="slide slide--section">
+      <div class="section-number">SECTION 01</div>
+      <div class="section-title">3種類のProbeを理解する</div>
+    </section>
+
+    <!-- ===== SLIDE 4: Readiness Probe ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">Readiness Probe — 「準備できているか」をチェック</div>
+      <div class="slide-body">
+        <ul class="slide-list">
+          <li>
+            役割：Podがリクエストを受け付けられる状態かを確認する
+          </li>
+          <li>
+            失敗時の動作：Serviceのエンドポイントから一時的に除外される
+            <span class="note">Podはそのまま動き続ける（再起動はしない）</span>
+          </li>
+          <li>
+            典型的なユースケース：アプリ起動済みだがDB接続がまだ完了していない
+          </li>
+          <li>
+            回復すれば自動でエンドポイントに復帰する
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 5: Liveness Probe ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">Liveness Probe — 「生きているか」をチェック</div>
+      <div class="slide-body">
+        <ul class="slide-list">
+          <li>
+            役割：コンテナのプロセスが正常に動作しているかを確認する
+          </li>
+          <li>
+            失敗時の動作：コンテナを強制再起動する
+            <span class="note">再起動により自動復旧を実現</span>
+          </li>
+          <li>
+            典型的なユースケース：無限ループ・デッドロック・メモリリークによる応答不能
+          </li>
+          <li>
+            定期的に繰り返しチェックし、障害を継続的に検知する
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 6: Startup Probe ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">Startup Probe — 「起動完了を待つ」</div>
+      <div class="slide-body">
+        <ul class="slide-list">
+          <li>
+            役割：コンテナの起動完了を確認するための専用プローブ
+          </li>
+          <li>
+            動作の仕組み：Startup Probe が成功するまで Liveness / Readiness は実行されない
+            <span class="note">起動中に誤って失敗判定されるのを防ぐ</span>
+          </li>
+          <li>
+            典型的なユースケース：起動に時間がかかるが、完了時間が読めないアプリ
+            <span class="note">Java アプリ・大規模データ初期化など</span>
+          </li>
+          <li>
+            成功後は Liveness / Readiness に引き継がれ通常の監視が始まる
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 7: AWSとの比較 ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">AWS（ECS）との比較 — おなじみの概念で理解</div>
+      <div class="slide-body">
+        <table class="slide-table">
+          <thead>
+            <tr>
+              <th>Kubernetes</th>
+              <th>AWS / ECS</th>
+              <th>役割</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag">Readiness Probe</span></td>
+              <td>ターゲットグループのヘルスチェック（ALB）</td>
+              <td>リクエストを受け付ける準備ができたか</td>
+            </tr>
+            <tr>
+              <td><span class="tag">Liveness Probe</span></td>
+              <td>コンテナの healthCheck 定義</td>
+              <td>コンテナが生きているかをチェック</td>
+            </tr>
+            <tr>
+              <td><span class="tag">Startup Probe</span></td>
+              <td>明示的な対応機能なし（起動時間設定で代用）</td>
+              <td>起動の遅いアプリに猶予を与える</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 8: YAML設定例 ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">YAML設定例 — Slack Metrics API の実際の設定</div>
+      <div class="slide-body">
+        <pre class="slide-code">livenessProbe:           # コンテナが生きているかどうかを確認
+  httpGet:
+    path: /api/health
+    port: 8080
+  initialDelaySeconds: 15  # 起動後15秒待ってからチェック開始
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:          # リクエストを受け付けるかどうかを確認
+  httpGet:
+    path: /api/health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 3</pre>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 9: Startup Probe vs initialDelaySeconds ===== -->
+    <section class="slide slide--content slide--two-col">
+      <div class="slide-header">Startup Probe vs initialDelaySeconds — 使い分けのポイント</div>
+      <div class="slide-body">
+        <div>
+          <div class="slide-col-label">initialDelaySeconds</div>
+          <ul class="slide-list">
+            <li>起動時間が固定・予測可能な場合に有効</li>
+            <li>設定した秒数が経過するまで固定で待機</li>
+            <li>起動が早くても残り時間は無駄に待つ</li>
+          </ul>
+        </div>
+        <div>
+          <div class="slide-col-label">Startup Probe（推奨）</div>
+          <ul class="slide-list">
+            <li>起動時間がブレる場合に有効</li>
+            <li>成功した瞬間に次のProbeへ即移行</li>
+            <li>最大待機時間も柔軟に設定できる</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SLIDE 10: まとめ ===== -->
+    <section class="slide slide--content">
+      <div class="slide-header">まとめ — 本番環境でのベストプラクティス</div>
+      <div class="slide-body">
+        <ul class="slide-list">
+          <li>
+            <strong>Readiness Probe</strong> は必ず設定する
+            <span class="note">未準備のPodへのトラフィックを防ぎ、500エラーを最小化</span>
+          </li>
+          <li>
+            <strong>Liveness Probe</strong> は必ず設定する
+            <span class="note">ハングアップやクラッシュからの自動復旧を保証</span>
+          </li>
+          <li>
+            起動時間が読めないアプリには <strong>Startup Probe</strong> を前段に置く
+            <span class="note">誤判定による再起動ループを防ぎ、安全に起動完了を待てる</span>
+          </li>
+          <li>
+            3つのProbeはマニフェストで一元管理できる — これがKubernetesの強み
+          </li>
+        </ul>
+      </div>
+    </section>
+
+  </div><!-- /.deck -->
+</div><!-- /.deck-container -->
+
+<!-- Progress bar -->
+<div class="progress" id="progress"></div>
+
+<!-- Navigation controls -->
+<div class="nav" id="nav">
+  <button class="nav-btn" id="btn-prev" onclick="navigate(-1)" title="前へ (←)">&#8249;</button>
+  <span class="nav-counter"><span id="current">1</span>&thinsp;/&thinsp;<span id="total">1</span></span>
+  <button class="nav-btn" id="btn-next" onclick="navigate(1)" title="次へ (→)">&#8250;</button>
+</div>
+
+<script>
+  const slides   = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  const currentEl = document.getElementById('current');
+  const totalEl   = document.getElementById('total');
+  const btnPrev   = document.getElementById('btn-prev');
+  const btnNext   = document.getElementById('btn-next');
+
+  let current = 0;
+  totalEl.textContent = slides.length;
+
+  function show(index) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(index, slides.length - 1));
+    slides[current].classList.add('active');
+
+    const pct = slides.length > 1 ? (current / (slides.length - 1)) * 100 : 100;
+    progress.style.width = pct + '%';
+    currentEl.textContent = current + 1;
+    btnPrev.disabled = current === 0;
+    btnNext.disabled = current === slides.length - 1;
+
+    scaleSlide();
+  }
+
+  function navigate(dir) { show(current + dir); }
+
+  function scaleSlide() {
+    const deck = document.getElementById('deck');
+    const container = deck.parentElement;
+    const scaleX = container.clientWidth  / 1280;
+    const scaleY = container.clientHeight / 720;
+    const scale  = Math.min(scaleX, scaleY);
+    deck.style.transform = `scale(${scale})`;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ')  navigate(1);
+    if (e.key === 'ArrowLeft')                     navigate(-1);
+    if (e.key === 'Home')                          show(0);
+    if (e.key === 'End')                           show(slides.length - 1);
+  });
+
+  window.addEventListener('resize', scaleSlide);
+
+  show(0);
+</script>
+</body>
+</html>

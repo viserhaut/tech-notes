@@ -4,5 +4,14 @@
 # Dependencies
 node_modules/
 
-# Slides (drawio / PDF — SpeakerDeck に手動アップ、Git 管理外)
-slides/
+# Slides: PDFのみGit管理外（SpeakerDeckに手動アップ）、HTMLはGitHub Pages公開のため管理対象
+slides/**/*.pdf
+
+# Test artifacts
+test-output.pdf
+test-ogp.png
+test-export*.cjs
+
+# Editor
+.vscode/
+*.swp

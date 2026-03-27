@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobでDBマイグレーションを単発実行する</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --color-bg:           #0F1117;
+    --color-surface:      #1A1D27;
+    --color-surface-alt:  #232735;
+    --color-text:         #E8EAF0;
+    --color-text-sub:     #8B90A0;
+    --color-text-muted:   #5A5F73;
+    --color-border:       #2A2E3D;
+    --color-accent:       #4F8FFF;
+    --color-accent-dim:   rgba(79, 143, 255, 0.12);
+    --color-accent-mid:   rgba(79, 143, 255, 0.25);
+    --color-aws:          #FF9900;
+    --color-aws-dim:      rgba(255, 153, 0, 0.12);
+    --color-k8s:          #4F8FFF;
+    --color-k8s-dim:      rgba(79, 143, 255, 0.12);
+    --color-success:      #34D399;
+    --color-success-dim:  rgba(52, 211, 153, 0.12);
+    --color-warning:      #FBBF24;
+    --color-warning-dim:  rgba(251, 191, 36, 0.12);
+    --color-danger:       #F87171;
+    --color-danger-dim:   rgba(248, 113, 113, 0.12);
+    --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
+    --font-body:          'Noto Sans JP', 'Inter', sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+    --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
+    --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
+    --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
+    --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
+    --slide-padding-x: 72px; --slide-padding-y: 56px;
+    --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
+    --slide-width: 1280px; --slide-height: 720px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+  body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
+
+  .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
+  .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+  .slide-inner.type-title { justify-content: center; align-items: flex-start; padding: var(--slide-padding-y) var(--slide-padding-x); background: radial-gradient(ellipse 80% 60% at 90% 80%, var(--color-accent-dim) 0%, transparent 70%), var(--color-bg); }
+  .type-title .title-badge-row { display: flex; gap: var(--gap-xs); margin-bottom: var(--gap-lg); }
+  .type-title .title-main { font-family: var(--font-heading); font-size: var(--fs-hero); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: -0.02em; margin-bottom: var(--gap-md); max-width: 950px; }
+  .type-title .title-accent { color: var(--color-accent); }
+  .type-title .title-sub { font-size: var(--fs-subheading); color: var(--color-text-sub); font-weight: var(--fw-regular); }
+  .type-title .title-meta { position: absolute; bottom: var(--slide-padding-y); left: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  .slide-inner.type-section { justify-content: center; padding: var(--slide-padding-y) var(--slide-padding-x); background: linear-gradient(135deg, var(--color-accent-dim) 0%, transparent 50%), var(--color-bg); border-left: 5px solid var(--color-accent); }
+  .type-section .section-number { font-size: var(--fs-caption); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: 0.2em; color: var(--color-accent); margin-bottom: var(--gap-sm); }
+  .type-section .section-title { font-family: var(--font-heading); font-size: var(--fs-title); font-weight: var(--fw-bold); line-height: var(--lh-tight); max-width: 800px; }
+
+  .type-message .slide-heading, .type-message-rev .slide-heading, .type-compare .slide-heading, .type-code .slide-heading { font-family: var(--font-heading); font-size: var(--fs-heading); font-weight: var(--fw-bold); line-height: var(--lh-tight); margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: var(--gap-sm); }
+  .slide-heading .heading-accent-bar { width: 4px; height: 1.4em; background: var(--color-accent); border-radius: 2px; flex-shrink: 0; }
+
+  .slide-inner.type-message { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message .slide-body { flex: 1; display: flex; gap: var(--gap-xl); align-items: center; }
+  .type-message .slide-text { flex: 0 0 42%; }
+  .type-message .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-message-rev { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message-rev .slide-body { flex: 1; display: flex; flex-direction: row-reverse; gap: var(--gap-xl); align-items: center; }
+  .type-message-rev .slide-text { flex: 0 0 42%; }
+  .type-message-rev .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-compare { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); }
+  .compare-table th { background: var(--color-accent-mid); color: var(--color-text); padding: 14px 22px; text-align: left; font-weight: var(--fw-semibold); font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.08em; }
+  .compare-table th:first-child { border-radius: 6px 0 0 0; } .compare-table th:last-child { border-radius: 0 6px 0 0; }
+  .compare-table td { padding: 14px 22px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .compare-table tr:nth-child(even) td { background: var(--color-surface); }
+  .compare-table .highlight-cell { color: var(--color-success); font-weight: var(--fw-medium); }
+
+  .slide-inner.type-code { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .code-container { flex: 1; display: flex; gap: var(--gap-lg); align-items: stretch; }
+  .code-block { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 24px 28px; font-family: var(--font-mono); font-size: var(--fs-code); line-height: var(--lh-relaxed); overflow-x: auto; white-space: pre; }
+  .code-block .kw { color: #C792EA; } .code-block .str { color: #A5D6A7; } .code-block .cmt { color: var(--color-text-muted); font-style: italic; } .code-block .prm { color: #89DDFF; } .code-block .val { color: #F78C6C; }
+  .code-notes { flex: 0 0 280px; display: flex; flex-direction: column; gap: var(--gap-sm); justify-content: center; }
+  .code-note { background: var(--color-surface); border-left: 3px solid var(--color-accent); border-radius: 0 6px 6px 0; padding: 12px 16px; font-size: var(--fs-caption); line-height: var(--lh-normal); }
+  .code-note strong { color: var(--color-accent); font-weight: var(--fw-semibold); }
+
+  .slide-inner.type-summary { padding: var(--slide-padding-y) var(--slide-padding-x); justify-content: center; }
+  .type-summary .slide-heading { margin-bottom: var(--gap-xl); text-align: center; }
+  .summary-grid { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .summary-card { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 28px 24px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .summary-card .card-num { font-size: var(--fs-hero); font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; }
+  .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+  .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+  .badge-aws { background: var(--color-aws-dim); color: var(--color-aws); }
+  .badge-k8s { background: var(--color-k8s-dim); color: var(--color-k8s); }
+  .bullet-list { list-style: none; }
+  .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
+  .bullet-list li strong { color: var(--color-text); font-weight: var(--fw-medium); }
+  .highlight { color: var(--color-accent); font-weight: var(--fw-semibold); }
+  .hl-success { color: var(--color-success); font-weight: var(--fw-semibold); }
+  .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
+  .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+  .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
+
+  @media screen {
+    .slide-inner > * { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .slide.in-view .slide-inner > * { opacity: 1; transform: translateY(0); }
+    .slide.in-view .slide-inner > *:nth-child(1) { transition-delay: 0.05s; }
+    .slide.in-view .slide-inner > *:nth-child(2) { transition-delay: 0.15s; }
+    .slide.in-view .slide-inner > *:nth-child(3) { transition-delay: 0.25s; }
+    .slide.in-view .slide-inner > *:nth-child(4) { transition-delay: 0.35s; }
+  }
+  @media print {
+    html { scroll-snap-type: none; }
+    body { background: var(--color-bg); }
+    .slide { width: 1280px; height: 720px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .slide-inner { width: 1280px; height: 720px; }
+    .slide-inner > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .nav-hint, .progress-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- slide-01: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes</span>
+      <span class="badge badge-k8s">Job</span>
+      <span class="badge badge-aws">DB Migration</span>
+    </div>
+    <div class="title-main">
+      <span class="title-accent">Job</span>でDBマイグレーションを<br>単発実行する
+    </div>
+    <div class="title-sub">Job / minikube image load / restartPolicy / CI/CD連携の基本を習得する</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- slide-02: type-section -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-section">
+    <div class="section-number">Section 01</div>
+    <div class="section-title">Jobとは何か</div>
+    <span class="page-num">2 / 9</span>
+  </div>
+</div>
+
+<!-- slide-03: type-message -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Jobは「一度きりの実行」リソース、ECSのrun-taskに相当
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>Deployment</strong>は常時Podを維持、<strong>Job</strong>は処理完了で終了</li>
+          <li>AWSでの対応は <span class="highlight">aws ecs run-task</span> ― 一回だけ流したい処理</li>
+          <li>完了後もJobオブジェクトが残るため<span class="hl-danger">手動削除</span>が必要</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 460 310" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrB" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          </defs>
+
+          <!-- Deployment（常時稼働） -->
+          <text x="110" y="20" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="600">Deployment</text>
+          <rect x="20" y="30" width="180" height="44" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="110" y="57" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF">Pod（常時稼働）</text>
+
+          <!-- ループ矢印 -->
+          <path d="M 200 52 C 230 52 230 30 200 30" fill="none" stroke="#4F8FFF" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrB)"/>
+          <text x="235" y="45" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">再起動</text>
+
+          <!-- Job（単発実行） -->
+          <text x="110" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">Job</text>
+          <rect x="20" y="120" width="180" height="44" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="110" y="147" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">Pod（単発実行）</text>
+
+          <line x1="200" y1="142" x2="270" y2="142" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrG)"/>
+          <rect x="270" y="120" width="90" height="44" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+          <text x="315" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Completed</text>
+          <text x="315" y="155" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">終了</text>
+
+          <!-- 具体例 -->
+          <rect x="20" y="195" width="350" height="35" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="35" y="217" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">用途例:</text>
+          <text x="95" y="217" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0">DBマイグレーション / データ変換 / 一時スクリプト</text>
+
+          <!-- AWS比較 -->
+          <rect x="20" y="245" width="350" height="44" rx="6" fill="rgba(255,153,0,0.08)" stroke="#FF9900" stroke-width="1"/>
+          <text x="35" y="264" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FF9900" font-weight="600">AWS対応</text>
+          <text x="35" y="280" font-family="JetBrains Mono, monospace" font-size="11" fill="#FF9900">aws ecs run-task</text>
+          <text x="168" y="280" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0"> — 一回だけ実行するタスク</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">3 / 9</span>
+  </div>
+</div>
+
+<!-- slide-04: type-compare -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Deployment / Job / CronJob — 用途の違い
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:18%">リソース</th>
+          <th style="width:27%">動作</th>
+          <th style="width:27%">向いている用途</th>
+          <th style="width:28%">AWS対応</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Deployment</strong></td>
+          <td>Podを常時維持・再起動</td>
+          <td>APIサーバ / Webアプリ</td>
+          <td>ECS Service</td>
+        </tr>
+        <tr>
+          <td><strong>Job</strong></td>
+          <td class="highlight-cell">処理完了で終了、再起動なし</td>
+          <td class="highlight-cell">DBマイグレーション / バッチ</td>
+          <td class="highlight-cell">aws ecs run-task</td>
+        </tr>
+        <tr>
+          <td><strong>CronJob</strong></td>
+          <td>スケジュール通りにJobを生成</td>
+          <td>定期レポート / 定期クリーンアップ</td>
+          <td>EventBridge + ECS</td>
+        </tr>
+      </tbody>
+    </table>
+    <span class="page-num">4 / 9</span>
+  </div>
+</div>
+
+<!-- slide-05: type-section -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-section">
+    <div class="section-number">Section 02</div>
+    <div class="section-title">Minikubeで<br>イメージを持ち込む</div>
+    <span class="page-num">5 / 9</span>
+  </div>
+</div>
+
+<!-- slide-06: type-message-rev -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      minikube image loadでローカルイメージをMinikubeに転送する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>Minikubeは<strong>独立したVM</strong>のため、ホストのDockerイメージを直接参照できない</li>
+          <li><span class="highlight">minikube image load</span> でイメージを転送してからPodで指定する</li>
+          <li>ECRを経由せず<span class="hl-success">ローカルで完結</span>するため高速に検証できる</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrR2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+          </defs>
+
+          <!-- ホストマシン -->
+          <rect x="10" y="10" width="190" height="180" rx="10" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.5"/>
+          <text x="105" y="35" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="500">ホストマシン（MacBook）</text>
+
+          <rect x="30" y="48" width="150" height="40" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="105" y="72" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF">docker build</text>
+
+          <line x1="105" y1="88" x2="105" y2="115" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrR2)"/>
+
+          <rect x="30" y="118" width="150" height="40" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="105" y="142" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#4F8FFF">db-migrator:abc123</text>
+
+          <!-- 転送矢印 -->
+          <line x1="200" y1="138" x2="248" y2="138" stroke="#34D399" stroke-width="2" marker-end="url(#arrR2)"/>
+          <text x="224" y="128" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#34D399">minikube</text>
+          <text x="224" y="118" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#34D399">image load</text>
+
+          <!-- Minikube VM -->
+          <rect x="248" y="10" width="182" height="180" rx="10" fill="#1A1D27" stroke="#34D399" stroke-width="1.5"/>
+          <text x="339" y="35" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="500">Minikube VM</text>
+
+          <rect x="268" y="48" width="142" height="40" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+          <text x="339" y="72" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">イメージ転送済み</text>
+
+          <line x1="339" y1="88" x2="339" y2="115" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrR2)"/>
+
+          <rect x="268" y="118" width="142" height="40" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+          <text x="339" y="142" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Pod から参照可能</text>
+
+          <!-- コマンド例 -->
+          <rect x="10" y="210" width="420" height="70" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="30" y="232" font-family="JetBrains Mono, monospace" font-size="11" fill="#8B90A0"># ビルド → ロード</text>
+          <text x="30" y="252" font-family="JetBrains Mono, monospace" font-size="11" fill="#4F8FFF">docker build</text>
+          <text x="124" y="252" font-family="JetBrains Mono, monospace" font-size="11" fill="#E8EAF0"> -t db-migrator:latest .</text>
+          <text x="30" y="270" font-family="JetBrains Mono, monospace" font-size="11" fill="#34D399">minikube image load</text>
+          <text x="194" y="270" font-family="JetBrains Mono, monospace" font-size="11" fill="#E8EAF0"> db-migrator:latest</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">6 / 9</span>
+  </div>
+</div>
+
+<!-- slide-07: type-code -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-code">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Jobマニフェストの読み方
+    </h2>
+    <div class="code-container">
+      <div class="code-block"><span class="kw">apiVersion</span>: batch/v1
+<span class="kw">kind</span>: Job
+<span class="kw">metadata</span>:
+  <span class="prm">name</span>: <span class="str">db-migrator-job</span>
+<span class="kw">spec</span>:
+  <span class="prm">backoffLimit</span>: <span class="val">1</span>         <span class="cmt"># 失敗時の最大リトライ数</span>
+  <span class="kw">template</span>:
+    <span class="kw">spec</span>:
+      <span class="prm">restartPolicy</span>: <span class="str">Never</span>  <span class="cmt"># Pod失敗時に再起動しない</span>
+      <span class="kw">containers</span>:
+        - <span class="prm">name</span>: <span class="str">db-migrator</span>
+          <span class="prm">image</span>: <span class="str">db-migrator:latest</span>
+          <span class="kw">env</span>:
+            - <span class="prm">name</span>: <span class="str">DB_HOST</span>
+              <span class="kw">valueFrom</span>:
+                <span class="kw">secretKeyRef</span>:
+                  <span class="prm">name</span>: <span class="str">postgres-secret</span>
+                  <span class="prm">key</span>: <span class="str">host</span>
+            - <span class="prm">name</span>: <span class="str">DB_PASSWORD</span>
+              <span class="kw">valueFrom</span>:
+                <span class="kw">secretKeyRef</span>:
+                  <span class="prm">name</span>: <span class="str">postgres-secret</span>
+                  <span class="prm">key</span>: <span class="str">password</span></div>
+      <div class="code-notes">
+        <div class="code-note"><strong>restartPolicy: Never</strong><br>Pod内コンテナが失敗してもPod自体を再起動しない。Jobでは Never か OnFailure を使う</div>
+        <div class="code-note"><strong>backoffLimit: 1</strong><br>Job全体のリトライ上限。1なら最大2回実行される（初回+1回リトライ）</div>
+        <div class="code-note"><strong>secretKeyRef</strong><br>DB接続情報はSecretから注入。YAMLにパスワードを直書きしない</div>
+        <div class="code-note"><strong>再実行時の注意</strong><br>完了済みJobは同名で再作成不可。<code>kubectl delete job</code>してから再apply</div>
+      </div>
+    </div>
+    <span class="page-num">7 / 9</span>
+  </div>
+</div>
+
+<!-- slide-08: type-message -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      再実行はdelete→apply、CI/CDパイプラインにも組み込める
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>完了したJobは<span class="hl-danger">同名で再apply不可</span> → <strong>delete → apply</strong> が基本操作</li>
+          <li>GitHub Actionsでapply→wait→logs→deleteの<span class="hl-success">4ステップ</span>で自動化できる</li>
+          <li>同一VPC内からDB接続が必要な処理にJobは最適</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 460 290" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrD2" markerWidth="7" markerHeight="7" refX="3.5" refY="5" orient="auto"><path d="M0,0 L3.5,7 L7,0 Z" fill="#4F8FFF"/></marker>
+          </defs>
+
+          <!-- CI/CDフロー -->
+          <text x="230" y="18" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="600" letter-spacing="0.1em">GitHub Actions CI/CD フロー</text>
+
+          <rect x="80" y="28" width="300" height="40" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="230" y="53" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#4F8FFF">kubectl apply -f job.yaml</text>
+
+          <line x1="230" y1="68" x2="230" y2="90" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrD2)"/>
+
+          <rect x="80" y="94" width="300" height="40" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="230" y="119" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#4F8FFF">kubectl wait --for=condition=complete</text>
+
+          <line x1="230" y1="134" x2="230" y2="156" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrD2)"/>
+
+          <rect x="80" y="160" width="300" height="40" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="230" y="185" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#4F8FFF">kubectl logs job/db-migrator-job</text>
+
+          <line x1="230" y1="200" x2="230" y2="222" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrD2)"/>
+
+          <rect x="80" y="226" width="300" height="40" rx="6" fill="rgba(248,113,113,0.08)" stroke="#F87171" stroke-width="1.2"/>
+          <text x="230" y="251" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#F87171">kubectl delete job db-migrator-job</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">8 / 9</span>
+  </div>
+</div>
+
+<!-- slide-09: type-summary -->
+<div class="slide" id="slide-9">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      まとめ — 3つのポイント
+    </h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">Jobは単発実行に特化</div>
+        <div class="card-desc">Deploymentと違い、Jobは処理が完了したら終了する。DBマイグレーションのような一回きりの処理に最適</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">minikube image loadで持ち込む</div>
+        <div class="card-desc">MinikubeはホストのDockerイメージを直接参照できない。image loadコマンドで転送してからPodに指定する</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">完了後はdelete必須</div>
+        <div class="card-desc">完了済みJobは同名で再apply不可。delete→applyが再実行の基本パターン。CI/CDではwait→logs→deleteで自動化する</div>
+      </div>
+    </div>
+    <span class="page-num">9 / 9</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>

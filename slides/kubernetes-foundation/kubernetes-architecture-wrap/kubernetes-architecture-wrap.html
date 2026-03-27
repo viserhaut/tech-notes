@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KubernetesのService全種とアーキテクチャを俯瞰する</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  :root {
+    --color-bg:#0F1117;--color-surface:#1A1D27;--color-surface-alt:#232735;--color-text:#E8EAF0;--color-text-sub:#8B90A0;--color-text-muted:#5A5F73;--color-border:#2A2E3D;
+    --color-accent:#4F8FFF;--color-accent-dim:rgba(79,143,255,0.12);--color-accent-mid:rgba(79,143,255,0.25);
+    --color-success:#34D399;--color-success-dim:rgba(52,211,153,0.12);--color-warning:#FBBF24;--color-danger:#F87171;--color-danger-dim:rgba(248,113,113,0.12);
+    --font-heading:'Noto Sans JP','Inter',sans-serif;--font-body:'Noto Sans JP','Inter',sans-serif;--font-mono:'JetBrains Mono','Fira Code',monospace;
+    --fs-hero:3.6rem;--fs-title:2.6rem;--fs-heading:1.85rem;--fs-subheading:1.3rem;--fs-body:1.05rem;--fs-caption:0.85rem;--fs-code:0.9rem;
+    --fw-bold:700;--fw-semibold:600;--fw-medium:500;--fw-regular:400;--lh-tight:1.25;--lh-normal:1.55;--lh-relaxed:1.7;
+    --slide-padding-x:72px;--slide-padding-y:56px;--gap-xl:56px;--gap-lg:40px;--gap-md:28px;--gap-sm:16px;--gap-xs:8px;--slide-width:1280px;--slide-height:720px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;scroll-snap-type:y mandatory;overflow-x:hidden;}
+  body{font-family:var(--font-body);color:var(--color-text);background:#000;line-height:var(--lh-normal);-webkit-font-smoothing:antialiased;}
+  .slide{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;scroll-snap-align:start;position:relative;}
+  .slide-inner{width:var(--slide-width);height:var(--slide-height);background:var(--color-bg);position:relative;display:flex;flex-direction:column;overflow:hidden;}
+  .slide-inner.type-title{justify-content:center;align-items:flex-start;padding:var(--slide-padding-y) var(--slide-padding-x);background:radial-gradient(ellipse 80% 60% at 90% 80%,var(--color-accent-dim) 0%,transparent 70%),var(--color-bg);}
+  .type-title .title-badge-row{display:flex;gap:var(--gap-xs);margin-bottom:var(--gap-lg);}
+  .type-title .title-main{font-family:var(--font-heading);font-size:3rem;font-weight:var(--fw-bold);line-height:var(--lh-tight);letter-spacing:-0.02em;margin-bottom:var(--gap-md);max-width:950px;}
+  .type-title .title-accent{color:var(--color-accent);}
+  .type-title .title-sub{font-size:var(--fs-subheading);color:var(--color-text-sub);font-weight:var(--fw-regular);}
+  .type-title .title-meta{position:absolute;bottom:var(--slide-padding-y);left:var(--slide-padding-x);font-size:var(--fs-caption);color:var(--color-text-muted);}
+  .slide-inner.type-section{justify-content:center;padding:var(--slide-padding-y) var(--slide-padding-x);background:linear-gradient(135deg,var(--color-accent-dim) 0%,transparent 50%),var(--color-bg);border-left:5px solid var(--color-accent);}
+  .type-section .section-number{font-size:var(--fs-caption);font-weight:var(--fw-semibold);text-transform:uppercase;letter-spacing:0.2em;color:var(--color-accent);margin-bottom:var(--gap-sm);}
+  .type-section .section-title{font-family:var(--font-heading);font-size:var(--fs-title);font-weight:var(--fw-bold);line-height:var(--lh-tight);max-width:800px;}
+  .type-message .slide-heading,.type-message-rev .slide-heading,.type-diagram .slide-heading,.type-compare .slide-heading{font-family:var(--font-heading);font-size:var(--fs-heading);font-weight:var(--fw-bold);line-height:var(--lh-tight);margin-bottom:var(--gap-lg);display:flex;align-items:center;gap:var(--gap-sm);}
+  .slide-heading .heading-accent-bar{width:4px;height:1.4em;background:var(--color-accent);border-radius:2px;flex-shrink:0;}
+  .slide-inner.type-message{padding:var(--slide-padding-y) var(--slide-padding-x);}
+  .type-message .slide-body{flex:1;display:flex;gap:var(--gap-xl);align-items:center;}
+  .type-message .slide-text{flex:0 0 42%;}
+  .type-message .slide-diagram{flex:1;display:flex;align-items:center;justify-content:center;}
+  .slide-inner.type-message-rev{padding:var(--slide-padding-y) var(--slide-padding-x);}
+  .type-message-rev .slide-body{flex:1;display:flex;flex-direction:row-reverse;gap:var(--gap-xl);align-items:center;}
+  .type-message-rev .slide-text{flex:0 0 42%;}
+  .type-message-rev .slide-diagram{flex:1;display:flex;align-items:center;justify-content:center;}
+  .slide-inner.type-diagram{padding:var(--slide-padding-y) var(--slide-padding-x);}
+  .type-diagram .diagram-area{flex:1;display:flex;align-items:center;justify-content:center;}
+  .slide-inner.type-compare{padding:var(--slide-padding-y) var(--slide-padding-x);}
+  .compare-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-body);}
+  .compare-table th{background:var(--color-accent-mid);color:var(--color-text);padding:14px 22px;text-align:left;font-weight:var(--fw-semibold);font-size:var(--fs-caption);text-transform:uppercase;letter-spacing:0.08em;}
+  .compare-table th:first-child{border-radius:6px 0 0 0;}.compare-table th:last-child{border-radius:0 6px 0 0;}
+  .compare-table td{padding:14px 22px;border-bottom:1px solid var(--color-border);vertical-align:top;}
+  .compare-table tr:nth-child(even) td{background:var(--color-surface);}
+  .compare-table .highlight-cell{color:var(--color-success);font-weight:var(--fw-medium);}
+  .slide-inner.type-summary{padding:var(--slide-padding-y) var(--slide-padding-x);justify-content:center;}
+  .type-summary .slide-heading{margin-bottom:var(--gap-xl);text-align:center;}
+  .summary-grid{display:flex;gap:var(--gap-md);max-width:1100px;margin:0 auto;}
+  .summary-card{flex:1;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;padding:28px 24px;display:flex;flex-direction:column;gap:var(--gap-sm);}
+  .summary-card .card-num{font-size:var(--fs-hero);font-weight:var(--fw-bold);color:var(--color-accent);opacity:0.3;line-height:1;}
+  .summary-card .card-title{font-size:var(--fs-subheading);font-weight:var(--fw-semibold);line-height:var(--lh-tight);}
+  .summary-card .card-desc{font-size:var(--fs-body);color:var(--color-text-sub);line-height:var(--lh-normal);}
+  .badge{display:inline-block;padding:5px 14px;border-radius:5px;font-size:var(--fs-caption);font-weight:var(--fw-semibold);letter-spacing:0.03em;}
+  .badge-k8s{background:var(--color-accent-dim);color:var(--color-accent);}
+  .bullet-list{list-style:none;}
+  .bullet-list li{font-size:var(--fs-body);padding:10px 0 10px 28px;position:relative;line-height:var(--lh-normal);color:var(--color-text-sub);}
+  .bullet-list li::before{content:'';position:absolute;left:0;top:18px;width:8px;height:8px;border-radius:2px;background:var(--color-accent);opacity:0.6;}
+  .bullet-list li strong{color:var(--color-text);font-weight:var(--fw-medium);}
+  .highlight{color:var(--color-accent);font-weight:var(--fw-semibold);}
+  .hl-success{color:var(--color-success);font-weight:var(--fw-semibold);}
+  .hl-danger{color:var(--color-danger);font-weight:var(--fw-semibold);}
+  .note{font-size:var(--fs-caption);color:var(--color-text-muted);margin-top:var(--gap-sm);}
+  .page-num{position:absolute;bottom:20px;right:var(--slide-padding-x);font-size:var(--fs-caption);color:var(--color-text-muted);font-variant-numeric:tabular-nums;}
+  .nav-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,0.08);backdrop-filter:blur(8px);color:rgba(255,255,255,0.5);padding:8px 24px;border-radius:20px;font-size:12px;z-index:100;pointer-events:none;}
+  .progress-bar{position:fixed;top:0;left:0;height:2px;background:var(--color-accent);z-index:200;transition:width 0.3s ease;}
+  @media screen{.slide-inner>*{opacity:0;transform:translateY(12px);transition:opacity 0.5s ease,transform 0.5s ease;}.slide.in-view .slide-inner>*{opacity:1;transform:translateY(0);}.slide.in-view .slide-inner>*:nth-child(1){transition-delay:0.05s;}.slide.in-view .slide-inner>*:nth-child(2){transition-delay:0.15s;}.slide.in-view .slide-inner>*:nth-child(3){transition-delay:0.25s;}.slide.in-view .slide-inner>*:nth-child(4){transition-delay:0.35s;}}
+  @media print{html{scroll-snap-type:none;}body{background:var(--color-bg);}.slide{width:1280px;height:720px;page-break-after:always;page-break-inside:avoid;overflow:hidden;}.slide-inner{width:1280px;height:720px;}.slide-inner>*{opacity:1!important;transform:none!important;transition:none!important;}.nav-hint,.progress-bar{display:none!important;}}
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- slide 1: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes</span>
+      <span class="badge badge-k8s">Chapter 12</span>
+    </div>
+    <div class="title-main">
+      <span class="title-accent">Service全種</span>と<br>アーキテクチャを<br>俯瞰する
+    </div>
+    <div class="title-sub">4種のServiceとControl Plane/Worker Nodeの全体像を掴む</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- slide 2: type-section -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-section">
+    <div class="section-number">Section 01</div>
+    <div class="section-title">Service 4種を<br>使い分ける</div>
+    <span class="page-num">2 / 9</span>
+  </div>
+</div>
+
+<!-- slide 3: type-compare -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      ClusterIP / Headless / NodePort / LoadBalancer — 4種比較
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Serviceタイプ</th>
+          <th style="width:30%">アクセス元</th>
+          <th style="width:25%">用途</th>
+          <th style="width:25%">AWSの相当</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ClusterIP</strong></td>
+          <td>クラスタ内のみ</td>
+          <td>マイクロサービス間通信</td>
+          <td>ALB Target Group（内部）</td>
+        </tr>
+        <tr>
+          <td><strong>Headless</strong></td>
+          <td>クラスタ内のみ</td>
+          <td>StatefulSet・DBのPod直接アクセス</td>
+          <td>Route53 Private（Pod IP返却）</td>
+        </tr>
+        <tr>
+          <td><strong>NodePort</strong></td>
+          <td>クラスタ外も可</td>
+          <td>ローカル開発・確認用</td>
+          <td>（非推奨）</td>
+        </tr>
+        <tr>
+          <td><strong>LoadBalancer</strong></td>
+          <td class="highlight-cell">クラスタ外（外部LB）</td>
+          <td class="highlight-cell">本番の外部公開（1サービス）</td>
+          <td class="highlight-cell">NLB（Network LB）</td>
+        </tr>
+      </tbody>
+    </table>
+    <span class="page-num">3 / 9</span>
+  </div>
+</div>
+
+<!-- slide 4: type-message -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      マイクロサービス増加でLoadBalancerは破綻する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>LoadBalancer Serviceは<strong>サービスごとに外部LBが1台</strong>必要。クラウドプロバイダーのLBリソースが必要</li>
+          <li>マイクロサービスが10個あれば<span class="hl-danger">LBが10台 → コストとIP枯渇が問題</span>になる</li>
+          <li>また、各LBはL4（TCP）のみ対応。<strong>パスベースのルーティングができない</strong></li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 290" xmlns="http://www.w3.org/2000/svg">
+          <!-- External clients -->
+          <rect x="10" y="110" width="80" height="40" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="50" y="134" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Client</text>
+
+          <!-- Multiple LBs -->
+          <line x1="90" y1="130" x2="115" y2="90" stroke="#F87171" stroke-width="1.2" marker-end="url(#arrR)"/>
+          <line x1="90" y1="130" x2="115" y2="130" stroke="#F87171" stroke-width="1.2" marker-end="url(#arrR)"/>
+          <line x1="90" y1="130" x2="115" y2="170" stroke="#F87171" stroke-width="1.2" marker-end="url(#arrR)"/>
+
+          <rect x="115" y="68" width="80" height="45" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="155" y="88" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171" font-weight="600">LB-1</text>
+          <text x="155" y="104" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">$0.025/hr</text>
+
+          <rect x="115" y="108" width="80" height="45" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="155" y="128" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171" font-weight="600">LB-2</text>
+          <text x="155" y="144" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">$0.025/hr</text>
+
+          <rect x="115" y="148" width="80" height="45" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="155" y="168" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171" font-weight="600">LB-n</text>
+          <text x="155" y="184" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">$0.025/hr</text>
+
+          <!-- Arrow to services -->
+          <line x1="195" y1="90" x2="240" y2="90" stroke="#F87171" stroke-width="1" marker-end="url(#arrR)"/>
+          <line x1="195" y1="130" x2="240" y2="130" stroke="#F87171" stroke-width="1" marker-end="url(#arrR)"/>
+          <line x1="195" y1="170" x2="240" y2="170" stroke="#F87171" stroke-width="1" marker-end="url(#arrR)"/>
+
+          <rect x="240" y="68" width="90" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="285" y="90" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">api-svc</text>
+          <rect x="240" y="112" width="90" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="285" y="134" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">web-svc</text>
+          <rect x="240" y="156" width="90" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="285" y="178" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">admin-svc</text>
+
+          <!-- cost label -->
+          <rect x="10" y="240" width="420" height="38" rx="6" fill="rgba(248,113,113,0.08)" stroke="#F87171" stroke-width="0.8"/>
+          <text x="220" y="260" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171">n個のLB × $0.025/hr → コスト爆発 + パスルーティング不可</text>
+
+          <defs><marker id="arrR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker></defs>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">4 / 9</span>
+  </div>
+</div>
+
+<!-- slide 5: type-message-rev -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      IngressがLoadBalancerの代替になる理由
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>Ingress + Ingress Controller</strong>で1台のエントリポイントから複数サービスへL7ルーティングができる</li>
+          <li>AWSでは<span class="hl-success">ALB Ingress Controller</span>を使うとIngress定義からALBが自動プロビジョニングされる。1台のALBで複数サービスに対応</li>
+          <li>TLS終端・ホスト名ルーティング・パスルーティングすべてを<strong>1つのIngressマニフェストで管理</strong>できる</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 280" xmlns="http://www.w3.org/2000/svg">
+          <!-- Client -->
+          <rect x="10" y="110" width="80" height="40" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="50" y="134" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Client</text>
+
+          <!-- Single Ingress -->
+          <line x1="90" y1="130" x2="135" y2="130" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrG)"/>
+          <rect x="135" y="95" width="130" height="70" rx="8" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="2"/>
+          <text x="200" y="125" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="700">Ingress</text>
+          <text x="200" y="143" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Controller</text>
+          <text x="200" y="158" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">1台 (ALB)</text>
+
+          <!-- routing to multiple services -->
+          <line x1="265" y1="115" x2="310" y2="80" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+          <line x1="265" y1="130" x2="310" y2="130" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+          <line x1="265" y1="145" x2="310" y2="180" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+
+          <rect x="310" y="60" width="110" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="365" y="80" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">/api → api</text>
+          <rect x="310" y="112" width="110" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="365" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">/web → web</text>
+          <rect x="310" y="162" width="110" height="35" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="365" y="182" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">/admin → admin</text>
+
+          <!-- cost label -->
+          <rect x="10" y="238" width="420" height="30" rx="5" fill="rgba(52,211,153,0.06)" stroke="#34D399" stroke-width="0.8"/>
+          <text x="220" y="258" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">1台のIngressでn個のサービスを管理 → コスト削減</text>
+
+          <defs><marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker></defs>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">5 / 9</span>
+  </div>
+</div>
+
+<!-- slide 6: type-section -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-section">
+    <div class="section-number">Section 02</div>
+    <div class="section-title">Kubernetes<br>アーキテクチャ</div>
+    <span class="page-num">6 / 9</span>
+  </div>
+</div>
+
+<!-- slide 7: type-diagram -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-diagram">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Control Plane + Worker Node 全体構成図
+    </h2>
+    <div class="diagram-area">
+      <svg viewBox="0 0 1080 360" xmlns="http://www.w3.org/2000/svg">
+        <!-- Control Plane -->
+        <rect x="10" y="30" width="480" height="290" rx="10" fill="rgba(79,143,255,0.06)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="250" y="58" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="700" letter-spacing="0.1em">CONTROL PLANE</text>
+
+        <rect x="30" y="75" width="200" height="65" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="130" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">kube-api-server</text>
+        <text x="130" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">全コンポーネントの通信ハブ</text>
+
+        <rect x="260" y="75" width="200" height="65" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="360" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">etcd</text>
+        <text x="360" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">クラスタ状態のKey-Valueストア</text>
+
+        <rect x="30" y="165" width="200" height="65" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="130" y="193" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">kube-scheduler</text>
+        <text x="130" y="212" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">PodをどのNodeに配置するか決定</text>
+
+        <rect x="260" y="165" width="200" height="65" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="360" y="193" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">controller-manager</text>
+        <text x="360" y="212" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ReplicaSet等のループ処理</text>
+
+        <!-- Arrow to Worker -->
+        <line x1="490" y1="180" x2="560" y2="180" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrWK)"/>
+
+        <!-- Worker Node -->
+        <rect x="560" y="30" width="500" height="290" rx="10" fill="rgba(52,211,153,0.04)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="810" y="58" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399" font-weight="700" letter-spacing="0.1em">WORKER NODE</text>
+
+        <rect x="580" y="75" width="200" height="65" rx="6" fill="rgba(52,211,153,0.1)" stroke="#34D399" stroke-width="1.2"/>
+        <text x="680" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399" font-weight="600">kubelet</text>
+        <text x="680" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod仕様をコンテナとして実現</text>
+
+        <rect x="800" y="75" width="200" height="65" rx="6" fill="rgba(52,211,153,0.1)" stroke="#34D399" stroke-width="1.2"/>
+        <text x="900" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399" font-weight="600">kube-proxy</text>
+        <text x="900" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">iptablesでServiceを実装</text>
+
+        <!-- Pods in Worker -->
+        <rect x="580" y="170" width="420" height="120" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="790" y="195" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Pods</text>
+        <rect x="600" y="205" width="115" height="65" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="0.8"/>
+        <text x="657" y="228" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">api-pod</text>
+        <text x="657" y="246" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">container</text>
+        <rect x="725" y="205" width="115" height="65" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="0.8"/>
+        <text x="782" y="228" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">web-pod</text>
+        <text x="782" y="246" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">container</text>
+        <rect x="850" y="205" width="115" height="65" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="0.8"/>
+        <text x="907" y="228" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">db-pod</text>
+        <text x="907" y="246" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">container</text>
+
+        <defs><marker id="arrWK" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker></defs>
+      </svg>
+    </div>
+    <span class="page-num">7 / 9</span>
+  </div>
+</div>
+
+<!-- slide 8: type-message -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      kubeletがPod仕様を実現し、kube-proxyがネットワークを制御
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>kubelet</strong>は各Worker Nodeで動くエージェント。kube-api-serverからPod仕様を受け取り、コンテナランタイム（containerd）にコンテナ起動を指示する</li>
+          <li><strong>kube-proxy</strong>はServiceが作られるとiptablesルールを書き換え、ClusterIPへのパケットをPod IPに転送する</li>
+          <li>kubectl applyからPod起動まで: <span class="hl-success">kubectl → api-server → etcd → scheduler → kubelet → containerd</span> の順に処理される</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 280" xmlns="http://www.w3.org/2000/svg">
+          <!-- kubectl -->
+          <rect x="10" y="110" width="90" height="40" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="55" y="134" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">kubectl</text>
+
+          <line x1="100" y1="130" x2="140" y2="130" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrKB)"/>
+
+          <!-- api-server -->
+          <rect x="140" y="110" width="90" height="40" rx="5" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="185" y="134" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF" font-weight="600">api-server</text>
+
+          <line x1="230" y1="130" x2="260" y2="100" stroke="#4F8FFF" stroke-width="1" marker-end="url(#arrKB)"/>
+          <line x1="230" y1="130" x2="260" y2="160" stroke="#4F8FFF" stroke-width="1" marker-end="url(#arrKB)"/>
+
+          <!-- etcd -->
+          <rect x="260" y="80" width="90" height="35" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="305" y="102" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">etcd</text>
+
+          <!-- scheduler -->
+          <rect x="260" y="143" width="90" height="35" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="305" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">scheduler</text>
+
+          <line x1="350" y1="160" x2="380" y2="140" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+
+          <!-- kubelet -->
+          <rect x="380" y="120" width="50" height="40" rx="5" fill="rgba(52,211,153,0.1)" stroke="#34D399" stroke-width="1.2"/>
+          <text x="405" y="140" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399" font-weight="600">kubelet</text>
+
+          <!-- containerd -->
+          <line x1="405" y1="160" x2="405" y2="195" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+          <rect x="360" y="195" width="90" height="35" rx="5" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+          <text x="405" y="217" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">containerd</text>
+
+          <!-- flow label -->
+          <rect x="10" y="248" width="420" height="24" rx="4" fill="rgba(79,143,255,0.06)" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="220" y="264" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">kubectl → api-server → etcd → scheduler → kubelet → containerd</text>
+
+          <defs>
+            <marker id="arrKB" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">8 / 9</span>
+  </div>
+</div>
+
+<!-- slide 9: type-summary -->
+<div class="slide" id="slide-9">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      コース振り返り — 3つの核心
+    </h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">宣言的APIがKubernetesの本質</div>
+        <div class="card-desc">「あるべき状態」をYAMLで宣言するだけで、Control Planeが自動的に現実状態を一致させ続ける</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">Service階層でネットワークを構成</div>
+        <div class="card-desc">ClusterIP→NodePort→LoadBalancer→Ingressの4層を状況に応じて使い分けることが設計の要点</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">AWSの知識がそのまま活きる</div>
+        <div class="card-desc">ECSサービス→Deployment、ALB→Ingress、EventBridge→CronJobと1対1で対応している。ECS経験者はすぐKubernetesに馴染める</div>
+      </div>
+    </div>
+    <span class="page-num">9 / 9</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>
