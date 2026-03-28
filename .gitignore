@@ -4,8 +4,6 @@
 # Dependencies
 node_modules/
 
-# Slides: PDFのみGit管理外（SpeakerDeckに手動アップ）、HTMLはGitHub Pages公開のため管理対象
-slides/**/*.pdf
 
 # Test artifacts
 test-output.pdf
