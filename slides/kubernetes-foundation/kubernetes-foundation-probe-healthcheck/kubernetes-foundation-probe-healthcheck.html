@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kubernetes Probe でヘルスチェックを自動化する</title>
+<title>Probe でコンテナの異常を自動検知する</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -15,11 +15,9 @@
     --color-text-sub:     #8B90A0;
     --color-text-muted:   #5A5F73;
     --color-border:       #2A2E3D;
-
     --color-accent:       #4F8FFF;
     --color-accent-dim:   rgba(79, 143, 255, 0.12);
     --color-accent-mid:   rgba(79, 143, 255, 0.25);
-
     --color-aws:          #FF9900;
     --color-aws-dim:      rgba(255, 153, 0, 0.12);
     --color-k8s:          #4F8FFF;
@@ -27,23 +25,19 @@
     --color-terraform:    #9B6DFF;
     --color-terraform-dim: rgba(155, 109, 255, 0.12);
     --color-docker:       #2496ED;
-
     --color-success:      #34D399;
     --color-success-dim:  rgba(52, 211, 153, 0.12);
     --color-warning:      #FBBF24;
     --color-warning-dim:  rgba(251, 191, 36, 0.12);
     --color-danger:       #F87171;
     --color-danger-dim:   rgba(248, 113, 113, 0.12);
-
     --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
     --font-body:          'Noto Sans JP', 'Inter', sans-serif;
     --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
-
     --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
     --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
     --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
     --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
-
     --slide-padding-x: 72px; --slide-padding-y: 56px;
     --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
     --slide-width: 1280px; --slide-height: 720px;
@@ -52,7 +46,6 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
   body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
-
   .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
   .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -107,10 +100,18 @@
   .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
   .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
 
+  /* Key Takeaway カスタムレイアウト */
+  .keytakeaway-headline { font-family: var(--font-heading); font-size: var(--fs-title); font-weight: var(--fw-bold); line-height: var(--lh-tight); text-align: center; margin-bottom: var(--gap-md); }
+  .keytakeaway-headline .hl { color: var(--color-accent); }
+  .keytakeaway-body { display: flex; gap: var(--gap-lg); align-items: center; flex: 1; }
+  .keytakeaway-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .keytakeaway-points { flex: 0 0 320px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .kt-point { background: var(--color-surface); border: 1px solid var(--color-border); border-left: 3px solid var(--color-accent); border-radius: 0 8px 8px 0; padding: 14px 18px; }
+  .kt-point .kt-label { font-size: var(--fs-caption); font-weight: var(--fw-semibold); color: var(--color-accent); letter-spacing: 0.05em; margin-bottom: 4px; }
+  .kt-point .kt-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
   .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
-  .badge-aws { background: var(--color-aws-dim); color: var(--color-aws); }
   .badge-k8s { background: var(--color-k8s-dim); color: var(--color-k8s); }
-  .badge-terraform { background: var(--color-terraform-dim); color: var(--color-terraform); }
   .bullet-list { list-style: none; }
   .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
   .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
@@ -120,7 +121,6 @@
   .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
   .note { font-size: var(--fs-caption); color: var(--color-text-muted); margin-top: var(--gap-sm); }
   .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-
   .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
   .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
 
@@ -171,30 +171,88 @@
 <div class="progress-bar" id="progress"></div>
 <div class="nav-hint">← → で移動</div>
 
-<!-- ===== 1. type-title ===== -->
+<!-- slide 1: type-title -->
 <div class="slide in-view" id="slide-1">
   <div class="slide-inner type-title">
     <div class="title-badge-row">
       <span class="badge badge-k8s">Kubernetes</span>
+      <span class="badge badge-k8s">Probe</span>
     </div>
     <div class="title-main">
-      <span class="title-accent">Probe</span>で<br>ヘルスチェックを自動化する
+      <span class="title-accent">Probe</span> で<br>コンテナの異常を自動検知する
     </div>
-    <div class="title-sub">Readiness / Liveness / Startup の使い分けと設計指針</div>
+    <div class="title-sub">Readiness / Liveness / Startup — 3種の使い分けで障害を防ぐ</div>
     <div class="title-meta">viserhaut — 2026</div>
   </div>
 </div>
 
-<!-- ===== 2. type-section ===== -->
+<!-- slide 2: Key Takeaway -->
 <div class="slide" id="slide-2">
-  <div class="slide-inner type-section">
-    <div class="section-number">Section 01</div>
-    <div class="section-title">Probeが解決する問題</div>
+  <div class="slide-inner type-summary">
+    <div class="keytakeaway-headline">
+      3種のProbeが<span class="hl">起動・稼働・受付</span>の3レイヤーを守る
+    </div>
+    <div class="keytakeaway-body">
+      <div class="keytakeaway-diagram">
+        <svg viewBox="0 0 580 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrY" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/></marker>
+            <marker id="arrR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker>
+            <marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          </defs>
+
+          <!-- Pod 中央 -->
+          <rect x="210" y="130" width="160" height="90" rx="10" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="2"/>
+          <text x="290" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="18" fill="#E8EAF0" font-weight="700">Pod</text>
+          <text x="290" y="196" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">コンテナ稼働中</text>
+
+          <!-- Startup Probe (下) -->
+          <rect x="185" y="278" width="210" height="52" rx="8" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+          <text x="290" y="303" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">Startup Probe</text>
+          <text x="290" y="320" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">起動完了まで監視</text>
+          <line x1="290" y1="278" x2="290" y2="228" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arrY)"/>
+
+          <!-- Liveness Probe (左) -->
+          <rect x="15" y="55" width="170" height="52" rx="8" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.5"/>
+          <text x="100" y="80" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Liveness Probe</text>
+          <text x="100" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">生存確認 → 再起動</text>
+          <line x1="185" y1="81" x2="213" y2="155" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrR)"/>
+
+          <!-- Readiness Probe (右) -->
+          <rect x="395" y="55" width="170" height="52" rx="8" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="480" y="80" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">Readiness Probe</text>
+          <text x="480" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">受付判定 → 除外/復帰</text>
+          <line x1="395" y1="81" x2="367" y2="155" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+          <!-- フェーズラベル -->
+          <rect x="15" y="15" width="72" height="22" rx="4" fill="rgba(248,113,113,0.15)"/>
+          <text x="51" y="30" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171" font-weight="600">稼働フェーズ</text>
+          <rect x="493" y="15" width="72" height="22" rx="4" fill="rgba(52,211,153,0.15)"/>
+          <text x="529" y="30" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399" font-weight="600">受付フェーズ</text>
+          <rect x="228" y="246" width="124" height="22" rx="4" fill="rgba(251,191,36,0.15)"/>
+          <text x="290" y="261" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24" font-weight="600">起動フェーズのみ</text>
+        </svg>
+      </div>
+      <div class="keytakeaway-points">
+        <div class="kt-point">
+          <div class="kt-label">Startup Probe</div>
+          <div class="kt-desc">起動完了までLivenessを止める。起動が遅いアプリの<strong style="color:#E8EAF0">誤再起動を防ぐ</strong></div>
+        </div>
+        <div class="kt-point">
+          <div class="kt-label">Liveness Probe</div>
+          <div class="kt-desc">プロセスが応答しなくなったら<strong style="color:#E8EAF0">自動再起動</strong>。デッドロックを自律回復</div>
+        </div>
+        <div class="kt-point">
+          <div class="kt-label">Readiness Probe</div>
+          <div class="kt-desc">受付不可のPodを<strong style="color:#E8EAF0">Serviceから自動除外</strong>。ユーザーへのエラーを防ぐ</div>
+        </div>
+      </div>
+    </div>
     <span class="page-num">2 / 8</span>
   </div>
 </div>
 
-<!-- ===== 3. type-message ===== -->
+<!-- slide 3: type-message -->
 <div class="slide" id="slide-3">
   <div class="slide-inner type-message">
     <h2 class="slide-heading">
@@ -204,45 +262,32 @@
     <div class="slide-body">
       <div class="slide-text">
         <ul class="bullet-list">
-          <li><strong>異常Podへリクエスト転送</strong>が続き、ユーザーに<span class="hl-danger">500エラー</span>が返る</li>
-          <li>プロセスがハングしても<strong>再起動されず</strong>、障害が長期化する</li>
-          <li>起動途中のPodにトラフィックが流れ、<strong>初期化エラー</strong>が発生する</li>
+          <li><strong>起動途中のPodにリクエストが届く</strong>ため、初期化未完了のまま500エラーを返す</li>
+          <li>デッドロックが発生しても<span class="hl-danger">Kubernetesは異常を検知できず</span>、壊れたPodが稼働し続ける</li>
+          <li>再起動後も<strong>準備完了前にトラフィックが流入</strong>し、一時的な障害が長引く</li>
         </ul>
+        <p class="note">Probeがない状態ではKubernetesの自律回復機能は機能しない</p>
       </div>
       <div class="slide-diagram">
-        <svg viewBox="0 0 440 320" xmlns="http://www.w3.org/2000/svg">
-          <!-- User -->
-          <rect x="160" y="10" width="120" height="44" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
-          <text x="220" y="37" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="500">User Request</text>
-          <!-- Service -->
-          <rect x="140" y="90" width="160" height="44" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
-          <text x="220" y="117" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#E8EAF0" font-weight="600">Service</text>
-          <line x1="220" y1="54" x2="220" y2="90" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrP1)"/>
-          <!-- Pod OK -->
-          <rect x="30" y="185" width="120" height="65" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.2"/>
-          <text x="90" y="212" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">Pod A</text>
-          <text x="90" y="232" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">正常</text>
-          <!-- Pod NG -->
-          <rect x="170" y="185" width="120" height="65" rx="6" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.2"/>
-          <text x="230" y="212" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="600">Pod B</text>
-          <text x="230" y="232" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">ハング</text>
-          <!-- Pod Starting -->
-          <rect x="310" y="185" width="120" height="65" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
-          <text x="370" y="212" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">Pod C</text>
-          <text x="370" y="232" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24">起動中</text>
-          <!-- Arrows from Service -->
-          <line x1="190" y1="134" x2="90" y2="185" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrP2)"/>
-          <line x1="220" y1="134" x2="230" y2="185" stroke="#F87171" stroke-width="1.2" stroke-dasharray="5,3" marker-end="url(#arrP3)"/>
-          <line x1="260" y1="134" x2="370" y2="185" stroke="#FBBF24" stroke-width="1.2" stroke-dasharray="5,3" marker-end="url(#arrP4)"/>
-          <!-- Danger box -->
-          <rect x="100" y="275" width="260" height="38" rx="6" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1"/>
-          <text x="230" y="299" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="500">異常Podにもトラフィックが分散される</text>
+        <svg viewBox="0 0 420 280" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <marker id="arrP1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
-            <marker id="arrP2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
-            <marker id="arrP3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker>
-            <marker id="arrP4" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/></marker>
+            <marker id="arrR3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker>
+            <marker id="arrK3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
           </defs>
+          <rect x="20" y="110" width="80" height="50" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+          <text x="60" y="140" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#8B90A0">User</text>
+          <rect x="165" y="110" width="90" height="50" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="210" y="140" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">Service</text>
+          <rect x="320" y="100" width="80" height="70" rx="6" fill="rgba(248,113,113,0.15)" stroke="#F87171" stroke-width="1.5"/>
+          <text x="360" y="133" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="600">Pod</text>
+          <text x="360" y="153" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">障害中</text>
+          <line x1="100" y1="135" x2="162" y2="135" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrK3)"/>
+          <line x1="255" y1="135" x2="317" y2="135" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrR3)"/>
+          <rect x="295" y="48" width="100" height="34" rx="5" fill="rgba(248,113,113,0.2)" stroke="#F87171" stroke-width="1"/>
+          <text x="345" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#F87171" font-weight="700">500 Error</text>
+          <line x1="345" y1="82" x2="360" y2="100" stroke="#F87171" stroke-width="1" stroke-dasharray="3,2"/>
+          <rect x="140" y="210" width="140" height="30" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="210" y="230" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171">Probeなし = 検知不可</text>
         </svg>
       </div>
     </div>
@@ -250,7 +295,7 @@
   </div>
 </div>
 
-<!-- ===== 4. type-message-rev ===== -->
+<!-- slide 4: type-message-rev -->
 <div class="slide" id="slide-4">
   <div class="slide-inner type-message-rev">
     <h2 class="slide-heading">
@@ -260,43 +305,43 @@
     <div class="slide-body">
       <div class="slide-text">
         <ul class="bullet-list">
-          <li><strong>Readiness Probe</strong>が失敗すると、Serviceのエンドポイントから<span class="hl-danger">除外</span>される</li>
-          <li><strong>Liveness Probe</strong>が失敗すると、kubeletがコンテナを<span class="hl-success">自動再起動</span>する</li>
-          <li><strong>Startup Probe</strong>が完了するまで、他のProbeは<strong>実行されない</strong></li>
+          <li><strong>Startup Probe</strong> — 起動フェーズ専用。完了後はLiveness/Readinessに引き継ぎ、<span class="hl-success">誤再起動を防ぐ</span></li>
+          <li><strong>Liveness Probe</strong> — 稼働中ずっと監視。失敗すると<span class="hl-danger">コンテナを再起動</span>し自律回復を実現</li>
+          <li><strong>Readiness Probe</strong> — 受付能力を判定。失敗するとServiceのエンドポイントから<strong>自動除外・復帰</strong></li>
         </ul>
       </div>
       <div class="slide-diagram">
-        <svg viewBox="0 0 440 320" xmlns="http://www.w3.org/2000/svg">
-          <!-- Startup -->
-          <rect x="110" y="15" width="220" height="65" rx="8" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
-          <text x="220" y="42" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">Startup Probe</text>
-          <text x="220" y="62" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">起動完了を待つ</text>
-          <!-- Arrow down -->
-          <line x1="220" y1="80" x2="220" y2="110" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrPF)"/>
-          <text x="240" y="100" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">成功後</text>
-          <!-- Fork -->
-          <line x1="220" y1="110" x2="120" y2="145" stroke="#5A5F73" stroke-width="1.2" marker-end="url(#arrPF)"/>
-          <line x1="220" y1="110" x2="320" y2="145" stroke="#5A5F73" stroke-width="1.2" marker-end="url(#arrPF)"/>
-          <!-- Readiness -->
-          <rect x="20" y="145" width="200" height="65" rx="8" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
-          <text x="120" y="172" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Readiness Probe</text>
-          <text x="120" y="192" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">トラフィック制御</text>
-          <!-- Liveness -->
-          <rect x="240" y="145" width="190" height="65" rx="8" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.2"/>
-          <text x="335" y="172" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Liveness Probe</text>
-          <text x="335" y="192" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">死活監視</text>
-          <!-- Results -->
-          <line x1="120" y1="210" x2="120" y2="250" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrPR)"/>
-          <rect x="30" y="250" width="180" height="40" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
-          <text x="120" y="275" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="500">NG → Serviceから除外</text>
-          <line x1="335" y1="210" x2="335" y2="250" stroke="#F87171" stroke-width="1.2" marker-end="url(#arrPL)"/>
-          <rect x="240" y="250" width="190" height="40" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
-          <text x="335" y="275" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="500">NG → コンテナ再起動</text>
+        <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <marker id="arrPF" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
-            <marker id="arrPR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
-            <marker id="arrPL" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker>
+            <marker id="arrP4" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
           </defs>
+          <!-- タイムライン -->
+          <rect x="30" y="30" width="340" height="6" rx="3" fill="#2A2E3D"/>
+          <rect x="30" y="30" width="100" height="6" rx="3" fill="#FBBF24"/>
+          <rect x="130" y="30" width="240" height="6" rx="3" fill="#4F8FFF" opacity="0.4"/>
+          <text x="80" y="20" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24" font-weight="600">起動</text>
+          <text x="260" y="20" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">稼働中</text>
+          <!-- Pod -->
+          <rect x="140" y="65" width="120" height="65" rx="8" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="200" y="101" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#E8EAF0" font-weight="600">Pod</text>
+          <!-- Startup -->
+          <rect x="30" y="80" width="95" height="36" rx="5" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1"/>
+          <text x="77" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">Startup</text>
+          <text x="77" y="111" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">起動確認</text>
+          <line x1="125" y1="98" x2="140" y2="98" stroke="#FBBF24" stroke-width="1.2" marker-end="url(#arrP4)"/>
+          <!-- Liveness -->
+          <rect x="30" y="165" width="95" height="36" rx="5" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1"/>
+          <text x="77" y="182" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="600">Liveness</text>
+          <text x="77" y="196" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">生存確認</text>
+          <line x1="125" y1="183" x2="143" y2="118" stroke="#F87171" stroke-width="1" stroke-dasharray="4,2"/>
+          <!-- Readiness -->
+          <rect x="275" y="165" width="95" height="36" rx="5" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+          <text x="322" y="182" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">Readiness</text>
+          <text x="322" y="196" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">受付判定</text>
+          <line x1="275" y1="183" x2="257" y2="118" stroke="#34D399" stroke-width="1" stroke-dasharray="4,2"/>
+          <!-- 結果ラベル -->
+          <text x="30" y="230" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">失敗 → コンテナ再起動</text>
+          <text x="230" y="230" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">失敗 → Service除外</text>
         </svg>
       </div>
     </div>
@@ -304,7 +349,7 @@
   </div>
 </div>
 
-<!-- ===== 5. type-compare ===== -->
+<!-- slide 5: type-compare -->
 <div class="slide" id="slide-5">
   <div class="slide-inner type-compare">
     <h2 class="slide-heading">
@@ -315,29 +360,35 @@
       <thead>
         <tr>
           <th style="width:18%">観点</th>
-          <th style="width:27%">Readiness</th>
-          <th style="width:27%">Liveness</th>
-          <th style="width:28%">Startup</th>
+          <th style="width:27%">Readiness Probe</th>
+          <th style="width:27%">Liveness Probe</th>
+          <th style="width:28%">Startup Probe</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td><strong>目的</strong></td>
-          <td>リクエスト受付可能か</td>
-          <td>プロセスが生きているか</td>
-          <td class="highlight-cell">起動完了を待つ</td>
+          <td><strong>役割</strong></td>
+          <td>リクエスト受付の準備確認</td>
+          <td>プロセスの生存確認</td>
+          <td>起動完了の確認</td>
         </tr>
         <tr>
           <td><strong>失敗時の動作</strong></td>
-          <td>Serviceから除外</td>
-          <td class="highlight-cell">コンテナ再起動</td>
-          <td>コンテナ再起動</td>
+          <td class="highlight-cell">Serviceエンドポイントから除外</td>
+          <td class="highlight-cell">コンテナを再起動</td>
+          <td>Liveness/Readinessを停止し続ける</td>
         </tr>
         <tr>
-          <td><strong>典型的な用途</strong></td>
-          <td>DB接続待ち、依存先未応答</td>
-          <td>ハング、メモリリーク</td>
-          <td class="highlight-cell">Java等の起動が遅いアプリ</td>
+          <td><strong>監視タイミング</strong></td>
+          <td>稼働中ずっと</td>
+          <td>稼働中ずっと</td>
+          <td class="highlight-cell">起動フェーズのみ</td>
+        </tr>
+        <tr>
+          <td><strong>主なユースケース</strong></td>
+          <td>DB接続待ち・高負荷時の切り離し</td>
+          <td>デッドロック・無限ループの回復</td>
+          <td>起動が遅いアプリの誤再起動防止</td>
         </tr>
       </tbody>
     </table>
@@ -345,125 +396,132 @@
   </div>
 </div>
 
-<!-- ===== 6. type-code ===== -->
+<!-- slide 6: type-code -->
 <div class="slide" id="slide-6">
   <div class="slide-inner type-code">
     <h2 class="slide-heading">
       <span class="heading-accent-bar"></span>
-      本番APIサーバーのProbe設定例
+      Probe設定マニフェスト例
     </h2>
     <div class="code-container">
-      <div class="code-block"><span class="kw">containers</span>:
-- <span class="prm">name</span>: <span class="str">api</span>
-  <span class="kw">livenessProbe</span>:
-    <span class="prm">httpGet</span>:
-      <span class="prm">path</span>: <span class="str">/api/health</span>
-      <span class="prm">port</span>: <span class="val">8080</span>
-    <span class="prm">initialDelaySeconds</span>: <span class="val">15</span>
-    <span class="prm">periodSeconds</span>: <span class="val">10</span>
-    <span class="prm">failureThreshold</span>: <span class="val">3</span>
-  <span class="kw">readinessProbe</span>:
-    <span class="prm">httpGet</span>:
-      <span class="prm">path</span>: <span class="str">/api/health</span>
-      <span class="prm">port</span>: <span class="val">8080</span>
-    <span class="prm">initialDelaySeconds</span>: <span class="val">5</span>
-    <span class="prm">periodSeconds</span>: <span class="val">10</span>
-    <span class="prm">failureThreshold</span>: <span class="val">3</span></div>
+      <div class="code-block"><span class="kw">startupProbe</span>:
+  <span class="prm">httpGet</span>:
+    <span class="prm">path</span>: <span class="str">/healthz</span>
+    <span class="prm">port</span>: <span class="val">8080</span>
+  <span class="prm">failureThreshold</span>: <span class="val">30</span>   <span class="cmt"># 最大30×10s=5分待つ</span>
+  <span class="prm">periodSeconds</span>: <span class="val">10</span>
+
+<span class="kw">livenessProbe</span>:
+  <span class="prm">httpGet</span>:
+    <span class="prm">path</span>: <span class="str">/healthz</span>
+    <span class="prm">port</span>: <span class="val">8080</span>
+  <span class="prm">initialDelaySeconds</span>: <span class="val">15</span>
+  <span class="prm">periodSeconds</span>: <span class="val">10</span>
+  <span class="prm">failureThreshold</span>: <span class="val">3</span>
+
+<span class="kw">readinessProbe</span>:
+  <span class="prm">httpGet</span>:
+    <span class="prm">path</span>: <span class="str">/ready</span>
+    <span class="prm">port</span>: <span class="val">8080</span>
+  <span class="prm">initialDelaySeconds</span>: <span class="val">5</span>
+  <span class="prm">periodSeconds</span>: <span class="val">5</span>
+  <span class="prm">failureThreshold</span>: <span class="val">2</span></div>
       <div class="code-notes">
-        <div class="code-note"><strong>liveness</strong><br>initialDelay=15sで起動完了を待ってから死活監視を開始</div>
-        <div class="code-note"><strong>readiness</strong><br>initialDelay=5sで早期にトラフィック制御を開始</div>
-        <div class="code-note"><strong>failureThreshold</strong><br>3回連続失敗で判定。一時的なスパイクで誤判定しない</div>
+        <div class="code-note"><strong>startupProbe</strong><br>failureThreshold×periodSecondsが猶予時間。起動が遅いアプリには大きめに設定</div>
+        <div class="code-note"><strong>livenessProbe</strong><br>パスは/healthz（DB接続不要のpingエンドポイント）。失敗=強制再起動なので保守的に</div>
+        <div class="code-note"><strong>readinessProbe</strong><br>パスは/ready（DB疎通など実際の受付能力を確認）。Livenessより短い間隔で細かく監視</div>
       </div>
     </div>
     <span class="page-num">6 / 8</span>
   </div>
 </div>
 
-<!-- ===== 7. type-diagram ===== -->
+<!-- slide 7: type-diagram -->
 <div class="slide" id="slide-7">
   <div class="slide-inner type-diagram">
     <h2 class="slide-heading">
       <span class="heading-accent-bar"></span>
-      Probe判定フローとPodライフサイクル
+      Pod起動〜障害〜自動復旧のフロー
     </h2>
     <div class="diagram-area">
-      <svg viewBox="0 0 1080 340" xmlns="http://www.w3.org/2000/svg">
-        <!-- Phase 1: Container Start -->
-        <rect x="10" y="50" width="200" height="110" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
-        <rect x="10" y="50" width="200" height="4" rx="2" fill="#FBBF24"/>
-        <text x="110" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="700" letter-spacing="0.1em">PHASE 1</text>
-        <text x="110" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#E8EAF0" font-weight="600">コンテナ起動</text>
-        <text x="110" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Startup Probeが</text>
-        <text x="110" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">完了を監視</text>
-
-        <line x1="210" y1="105" x2="265" y2="105" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrPD)"/>
-
-        <!-- Phase 2: Startup OK -->
-        <rect x="265" y="50" width="200" height="110" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
-        <rect x="265" y="50" width="200" height="4" rx="2" fill="#34D399"/>
-        <text x="365" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="700" letter-spacing="0.1em">PHASE 2</text>
-        <text x="365" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#E8EAF0" font-weight="600">起動完了</text>
-        <text x="365" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Readiness / Liveness</text>
-        <text x="365" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Probeが有効化</text>
-
-        <line x1="465" y1="105" x2="520" y2="105" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrPD)"/>
-
-        <!-- Phase 3: Running -->
-        <rect x="520" y="50" width="200" height="110" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
-        <rect x="520" y="50" width="200" height="4" rx="2" fill="#4F8FFF"/>
-        <text x="620" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="700" letter-spacing="0.1em">PHASE 3</text>
-        <text x="620" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#E8EAF0" font-weight="600">通常運用</text>
-        <text x="620" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Readiness: Service登録</text>
-        <text x="620" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Liveness: 定期死活監視</text>
-
-        <line x1="720" y1="105" x2="775" y2="105" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrPD)"/>
-
-        <!-- Phase 4: Failure -->
-        <rect x="775" y="50" width="250" height="110" rx="8" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.2"/>
-        <rect x="775" y="50" width="250" height="4" rx="2" fill="#F87171"/>
-        <text x="900" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="700" letter-spacing="0.1em">PHASE 4</text>
-        <text x="900" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#E8EAF0" font-weight="600">障害検知・自動復旧</text>
-        <text x="900" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Readiness NG → 除外</text>
-        <text x="900" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Liveness NG → 再起動</text>
-
-        <!-- Timeline bar -->
-        <rect x="10" y="220" width="1015" height="3" rx="1.5" fill="#2A2E3D"/>
-        <circle cx="110" cy="221" r="5" fill="#FBBF24"/>
-        <circle cx="365" cy="221" r="5" fill="#34D399"/>
-        <circle cx="620" cy="221" r="5" fill="#4F8FFF"/>
-        <circle cx="900" cy="221" r="5" fill="#F87171"/>
-
-        <text x="110" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Container Created</text>
-        <text x="365" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Startup OK</text>
-        <text x="620" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Ready / Running</text>
-        <text x="900" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Probe Failure</text>
-
-        <defs><marker id="arrPD" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker></defs>
+      <svg viewBox="0 0 1080 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrF7" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
+        </defs>
+        <!-- Step 1 -->
+        <rect x="10" y="40" width="185" height="110" rx="8" fill="#1A1D27" stroke="#FBBF24" stroke-width="1.5"/>
+        <rect x="10" y="40" width="185" height="5" rx="2" fill="#FBBF24" opacity="0.7"/>
+        <text x="102" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="700">STEP 1</text>
+        <text x="102" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">Pod起動</text>
+        <text x="102" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Startup Probe監視中</text>
+        <text x="102" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">L/R Probeは停止</text>
+        <line x1="195" y1="95" x2="225" y2="95" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrF7)"/>
+        <!-- Step 2 -->
+        <rect x="225" y="40" width="185" height="110" rx="8" fill="#1A1D27" stroke="#34D399" stroke-width="1.5"/>
+        <rect x="225" y="40" width="185" height="5" rx="2" fill="#34D399" opacity="0.7"/>
+        <text x="317" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="700">STEP 2</text>
+        <text x="317" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">起動完了</text>
+        <text x="317" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Readiness OK</text>
+        <text x="317" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Service登録</text>
+        <line x1="410" y1="95" x2="440" y2="95" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrF7)"/>
+        <!-- Step 3 -->
+        <rect x="440" y="40" width="185" height="110" rx="8" fill="rgba(79,143,255,0.1)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <rect x="440" y="40" width="185" height="5" rx="2" fill="#4F8FFF" opacity="0.7"/>
+        <text x="532" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="700">STEP 3</text>
+        <text x="532" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">正常稼働</text>
+        <text x="532" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">L/R Probe常時監視</text>
+        <line x1="625" y1="95" x2="655" y2="95" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrF7)"/>
+        <!-- Step 4 -->
+        <rect x="655" y="40" width="185" height="110" rx="8" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1.5"/>
+        <rect x="655" y="40" width="185" height="5" rx="2" fill="#F87171" opacity="0.7"/>
+        <text x="747" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="700">STEP 4</text>
+        <text x="747" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">Liveness失敗</text>
+        <text x="747" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">コンテナ再起動</text>
+        <line x1="840" y1="95" x2="870" y2="95" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrF7)"/>
+        <!-- Step 5 -->
+        <rect x="870" y="40" width="185" height="110" rx="8" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <rect x="870" y="40" width="185" height="5" rx="2" fill="#34D399"/>
+        <text x="962" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="700">STEP 5</text>
+        <text x="962" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">自動復旧</text>
+        <text x="962" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Readiness OK後</text>
+        <text x="962" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Service再登録</text>
+        <!-- タイムライン -->
+        <rect x="10" y="200" width="1045" height="3" rx="1.5" fill="#2A2E3D"/>
+        <circle cx="102" cy="201" r="5" fill="#FBBF24" opacity="0.8"/>
+        <circle cx="317" cy="201" r="5" fill="#34D399" opacity="0.8"/>
+        <circle cx="532" cy="201" r="5" fill="#4F8FFF" opacity="0.8"/>
+        <circle cx="747" cy="201" r="5" fill="#F87171" opacity="0.8"/>
+        <circle cx="962" cy="201" r="5" fill="#34D399"/>
+        <text x="102" y="225" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">t=0</text>
+        <text x="317" y="225" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">起動完了</text>
+        <text x="532" y="225" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">Readiness OK</text>
+        <text x="747" y="225" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">障害発生</text>
+        <text x="962" y="225" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">復旧完了</text>
       </svg>
     </div>
     <span class="page-num">7 / 8</span>
   </div>
 </div>
 
-<!-- ===== 8. type-summary ===== -->
+<!-- slide 8: type-summary -->
 <div class="slide" id="slide-8">
   <div class="slide-inner type-summary">
-    <h2 class="slide-heading">本番運用でのProbe設計3原則</h2>
+    <h2 class="slide-heading">本番Probe設計3原則</h2>
     <div class="summary-grid">
       <div class="summary-card">
         <div class="card-num">01</div>
-        <div class="card-title">Readiness + Livenessは必ずセットで設定する</div>
-        <div class="card-desc">異常Podへのトラフィック遮断と自動再起動の両方がないと、障害影響が拡大する</div>
+        <div class="card-title">Startup Probeで起動猶予を確保する</div>
+        <div class="card-desc">failureThreshold × periodSecondsが猶予時間。起動に30秒かかるなら最低60秒以上を設定し誤再起動を防ぐ</div>
       </div>
       <div class="summary-card">
         <div class="card-num">02</div>
-        <div class="card-title">起動時間が読めないならStartup Probeを前段に置く</div>
-        <div class="card-desc">initialDelaySecondsだけでは無駄な待ちが生じる。Startup Probeなら起動直後に次へ進める</div>
+        <div class="card-title">LivenessはDB接続を含めない</div>
+        <div class="card-desc">DBが落ちてもコンテナを再起動しても意味がない。Livenessはアプリ自身の死活のみを確認するエンドポイントに限定する</div>
       </div>
       <div class="summary-card">
         <div class="card-num">03</div>
-        <div class="card-title">failureThresholdで一時スパイクを吸収する</div>
-        <div class="card-desc">1回の失敗で即再起動すると、負荷スパイク時に全Podが再起動ループに陥るリスクがある</div>
+        <div class="card-title">ReadinessはLivenessより厳密に</div>
+        <div class="card-desc">短いperiodSecondsと小さいfailureThresholdで細かく判定。一時的な過負荷をすばやく検知しユーザーへのエラーを最小化する</div>
       </div>
     </div>
     <span class="page-num">8 / 8</span>
