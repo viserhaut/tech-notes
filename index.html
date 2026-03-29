@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kubernetes Foundation スライド一覧</title>
+  <title>tech-notes スライド一覧</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -20,263 +20,67 @@
     header p { font-size: 13px; color: #64748b; margin-top: 4px; }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 12px;
       padding: 16px;
     }
-    .card {
+    .course-card {
       background: #1e293b;
       border-radius: 10px;
       overflow: hidden;
       color: inherit;
-      display: block;
-    }
-    .card img {
-      width: 100%;
-      aspect-ratio: 16/9;
-      object-fit: cover;
-      display: block;
-      background: #0f172a;
-    }
-    .card-body { padding: 10px 10px 8px; }
-    .card-body span {
-      font-size: 12px;
-      font-weight: 600;
-      color: #cbd5e1;
-      line-height: 1.4;
-      display: block;
-    }
-    .chapter { font-size: 10px; color: #475569; margin-top: 3px; }
-    .card-links {
-      display: flex;
-      gap: 6px;
-      padding: 8px 10px 10px;
-    }
-    .btn {
-      flex: 1;
-      text-align: center;
-      padding: 5px 0;
-      border-radius: 5px;
-      font-size: 11px;
-      font-weight: 600;
       text-decoration: none;
-      transition: opacity 0.15s;
+      display: block;
+      transition: background 0.15s;
     }
-    .btn:active { opacity: 0.7; }
-    .btn-pdf { background: #1d4ed8; color: #fff; }
-    .btn-html { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .course-card:hover { background: #263548; }
+    .course-card-body {
+      padding: 20px 16px 16px;
+    }
+    .course-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(79,143,255,0.2);
+      color: #4F8FFF;
+      margin-bottom: 10px;
+    }
+    .course-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.4;
+    }
+    .course-meta {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 6px;
+    }
+    .course-arrow {
+      padding: 10px 16px;
+      font-size: 12px;
+      color: #4F8FFF;
+      border-top: 1px solid #334155;
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>Kubernetes Foundation</h1>
-    <p>スライド一覧 — PDFボタンでスマホ確認</p>
+    <h1>tech-notes</h1>
+    <p>コースを選択してスライドを表示</p>
   </header>
   <div class="grid">
 
-    <div class="card">
-      <img src="images/kubernetes-aws-engineer-intro-ogp.png" alt="">
-      <div class="card-body">
-        <span>AWS エンジニア向け入門</span>
-        <div class="chapter">intro</div>
+    <a class="course-card" href="slides/kubernetes-foundation/">
+      <div class="course-card-body">
+        <div class="course-badge">Kubernetes</div>
+        <div class="course-title">Kubernetes Foundation</div>
+        <div class="course-meta">17 スライドデッキ</div>
       </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-aws-engineer-intro/kubernetes-aws-engineer-intro.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-aws-engineer-intro/kubernetes-aws-engineer-intro.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-kubectl-pod-ogp.png" alt="">
-      <div class="card-body">
-        <span>kubectl / Pod</span>
-        <div class="chapter">ch02</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-kubectl-pod/kubernetes-kubectl-pod.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-kubectl-pod/kubernetes-kubectl-pod.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-deployment-replicaset-ogp.png" alt="">
-      <div class="card-body">
-        <span>Deployment / ReplicaSet</span>
-        <div class="chapter">ch04</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-deployment-replicaset/kubernetes-deployment-replicaset.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-deployment-replicaset/kubernetes-deployment-replicaset.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-service-clusterip-ogp.png" alt="">
-      <div class="card-body">
-        <span>Service / ClusterIP</span>
-        <div class="chapter">ch05</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-service-clusterip/kubernetes-service-clusterip.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-service-clusterip/kubernetes-service-clusterip.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-nodeport-ogp.png" alt="">
-      <div class="card-body">
-        <span>NodePort</span>
-        <div class="chapter">ch06</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-nodeport/kubernetes-nodeport.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-nodeport/kubernetes-nodeport.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-ingress-ogp.png" alt="">
-      <div class="card-body">
-        <span>Ingress</span>
-        <div class="chapter">ch07</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-ingress/kubernetes-ingress.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-ingress/kubernetes-ingress.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-statefulset-pv-secret-ogp.png" alt="">
-      <div class="card-body">
-        <span>StatefulSet / PV / Secret</span>
-        <div class="chapter">ch08</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-statefulset-pv-secret/kubernetes-statefulset-pv-secret.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-statefulset-pv-secret/kubernetes-statefulset-pv-secret.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-cronjob-configmap-ogp.png" alt="">
-      <div class="card-body">
-        <span>CronJob / ConfigMap</span>
-        <div class="chapter">ch09</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-cronjob-configmap/kubernetes-cronjob-configmap.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-cronjob-configmap/kubernetes-cronjob-configmap.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-job-migration-ogp.png" alt="">
-      <div class="card-body">
-        <span>Job / Migration</span>
-        <div class="chapter">ch10</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-job-migration/kubernetes-job-migration.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-job-migration/kubernetes-job-migration.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-probe-ogp.png" alt="">
-      <div class="card-body">
-        <span>Probe</span>
-        <div class="chapter">ch11</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-probe.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-probe.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-foundation-probe-healthcheck-ogp.png" alt="">
-      <div class="card-body">
-        <span>Probe / ヘルスチェック</span>
-        <div class="chapter">ch11 詳細</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-foundation-probe-healthcheck/kubernetes-foundation-probe-healthcheck.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-foundation-probe-healthcheck/kubernetes-foundation-probe-healthcheck.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-observability-ogp.png" alt="">
-      <div class="card-body">
-        <span>Observability</span>
-        <div class="chapter">ch12</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-observability/kubernetes-observability.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-observability/kubernetes-observability.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-foundation-metrics-server-ogp.png" alt="">
-      <div class="card-body">
-        <span>Metrics Server</span>
-        <div class="chapter">ch12 詳細</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-foundation-metrics-server/kubernetes-foundation-metrics-server.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-foundation-metrics-server/kubernetes-foundation-metrics-server.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-foundation-requests-limits-ogp.png" alt="">
-      <div class="card-body">
-        <span>Requests / Limits</span>
-        <div class="chapter">ch12 詳細</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-foundation-requests-limits/kubernetes-foundation-requests-limits.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-foundation-requests-limits/kubernetes-foundation-requests-limits.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-foundation-hpa-autoscaling-ogp.png" alt="">
-      <div class="card-body">
-        <span>HPA / Autoscaling</span>
-        <div class="chapter">ch12 詳細</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-foundation-hpa-autoscaling/kubernetes-foundation-hpa-autoscaling.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-foundation-hpa-autoscaling/kubernetes-foundation-hpa-autoscaling.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-foundation-log-collection-ogp.png" alt="">
-      <div class="card-body">
-        <span>ログ収集</span>
-        <div class="chapter">ch12 詳細</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-foundation-log-collection/kubernetes-foundation-log-collection.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-foundation-log-collection/kubernetes-foundation-log-collection.html">HTML</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <img src="images/kubernetes-architecture-wrap-ogp.png" alt="">
-      <div class="card-body">
-        <span>アーキテクチャ まとめ</span>
-        <div class="chapter">wrap</div>
-      </div>
-      <div class="card-links">
-        <a class="btn btn-pdf" href="slides/kubernetes-foundation/kubernetes-architecture-wrap/kubernetes-architecture-wrap.pdf">PDF</a>
-        <a class="btn btn-html" href="slides/kubernetes-foundation/kubernetes-architecture-wrap/kubernetes-architecture-wrap.html">HTML</a>
-      </div>
-    </div>
+      <div class="course-arrow">スライド一覧を見る →</div>
+    </a>
 
   </div>
 </body>
