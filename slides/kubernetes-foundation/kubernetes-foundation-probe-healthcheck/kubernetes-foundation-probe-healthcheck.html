@@ -210,27 +210,27 @@
           <rect x="185" y="278" width="210" height="52" rx="8" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
           <text x="290" y="303" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">Startup Probe</text>
           <text x="290" y="320" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">起動完了まで監視</text>
-          <line x1="290" y1="278" x2="290" y2="220" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arrY)"/>
+          <line x1="290" y1="278" x2="290" y2="223" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arrY)"/>
 
           <!-- Liveness Probe (左) -->
           <rect x="15" y="55" width="170" height="52" rx="8" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.5"/>
           <text x="100" y="80" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Liveness Probe</text>
           <text x="100" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">生存確認 → 再起動</text>
-          <polyline points="185,81 210,81 210,175" fill="none" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrR)"/>
+          <polyline points="185,81 197,81 197,175 207,175" fill="none" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrR)"/>
 
           <!-- Readiness Probe (右) -->
           <rect x="395" y="55" width="170" height="52" rx="8" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
           <text x="480" y="80" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">Readiness Probe</text>
           <text x="480" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">受付判定 → 除外/復帰</text>
-          <polyline points="395,81 370,81 370,175" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrG)"/>
+          <polyline points="395,81 383,81 383,175 373,175" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrG)"/>
 
           <!-- フェーズラベル -->
           <rect x="15" y="15" width="72" height="22" rx="4" fill="rgba(248,113,113,0.15)"/>
           <text x="51" y="30" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171" font-weight="600">稼働フェーズ</text>
           <rect x="493" y="15" width="72" height="22" rx="4" fill="rgba(52,211,153,0.15)"/>
           <text x="529" y="30" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399" font-weight="600">受付フェーズ</text>
-          <rect x="228" y="246" width="124" height="22" rx="4" fill="rgba(251,191,36,0.15)"/>
-          <text x="290" y="261" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24" font-weight="600">起動フェーズのみ</text>
+          <rect x="152" y="246" width="124" height="22" rx="4" fill="rgba(251,191,36,0.15)"/>
+          <text x="214" y="261" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24" font-weight="600">起動フェーズのみ</text>
         </svg>
       </div>
       <div class="keytakeaway-points">
@@ -285,7 +285,7 @@
           <line x1="255" y1="135" x2="317" y2="135" stroke="#F87171" stroke-width="1.5" marker-end="url(#arrR3)"/>
           <rect x="295" y="48" width="100" height="34" rx="5" fill="rgba(248,113,113,0.2)" stroke="#F87171" stroke-width="1"/>
           <text x="345" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#F87171" font-weight="700">500 Error</text>
-          <polyline points="345,82 345,100 360,100" fill="none" stroke="#F87171" stroke-width="1" stroke-dasharray="3,2"/>
+          <polyline points="345,82 345,91 360,91 360,100" fill="none" stroke="#F87171" stroke-width="1" stroke-dasharray="3,2"/>
           <rect x="140" y="210" width="140" height="30" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
           <text x="210" y="230" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171">Probeなし = 検知不可</text>
         </svg>
