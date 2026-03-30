@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kubernetesコアワークロード入門</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --color-bg:           #0F1117;
+    --color-surface:      #1A1D27;
+    --color-surface-alt:  #232735;
+    --color-text:         #E8EAF0;
+    --color-text-sub:     #8B90A0;
+    --color-text-muted:   #5A5F73;
+    --color-border:       #2A2E3D;
+
+    --color-accent:       #4F8FFF;
+    --color-accent-dim:   rgba(79, 143, 255, 0.12);
+    --color-accent-mid:   rgba(79, 143, 255, 0.25);
+
+    --color-aws:          #FF9900;
+    --color-aws-dim:      rgba(255, 153, 0, 0.12);
+    --color-k8s:          #4F8FFF;
+    --color-k8s-dim:      rgba(79, 143, 255, 0.12);
+    --color-terraform:    #9B6DFF;
+    --color-terraform-dim: rgba(155, 109, 255, 0.12);
+    --color-docker:       #2496ED;
+
+    --color-success:      #34D399;
+    --color-success-dim:  rgba(52, 211, 153, 0.12);
+    --color-warning:      #FBBF24;
+    --color-warning-dim:  rgba(251, 191, 36, 0.12);
+    --color-danger:       #F87171;
+    --color-danger-dim:   rgba(248, 113, 113, 0.12);
+
+    --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
+    --font-body:          'Noto Sans JP', 'Inter', sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+
+    --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
+    --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
+    --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
+    --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
+
+    --slide-padding-x: 72px; --slide-padding-y: 56px;
+    --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
+    --slide-width: 1280px; --slide-height: 720px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+  body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
+
+  .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
+  .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+  .slide-inner.type-title { justify-content: center; align-items: flex-start; padding: var(--slide-padding-y) var(--slide-padding-x); background: radial-gradient(ellipse 80% 60% at 90% 80%, var(--color-accent-dim) 0%, transparent 70%), var(--color-bg); }
+  .type-title .title-badge-row { display: flex; gap: var(--gap-xs); margin-bottom: var(--gap-lg); }
+  .type-title .title-main { font-family: var(--font-heading); font-size: var(--fs-hero); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: -0.02em; margin-bottom: var(--gap-md); max-width: 950px; }
+  .type-title .title-accent { color: var(--color-accent); }
+  .type-title .title-sub { font-size: var(--fs-subheading); color: var(--color-text-sub); font-weight: var(--fw-regular); }
+  .type-title .title-meta { position: absolute; bottom: var(--slide-padding-y); left: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  .type-message .slide-heading, .type-message-rev .slide-heading, .type-diagram .slide-heading, .type-compare .slide-heading, .type-code .slide-heading { font-family: var(--font-heading); font-size: var(--fs-heading); font-weight: var(--fw-bold); line-height: var(--lh-tight); margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: var(--gap-sm); }
+  .slide-heading .heading-accent-bar { width: 4px; height: 1.4em; background: var(--color-accent); border-radius: 2px; flex-shrink: 0; }
+
+  .slide-inner.type-message { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message .slide-body { flex: 1; display: flex; gap: var(--gap-xl); align-items: center; }
+  .type-message .slide-text { flex: 0 0 42%; }
+  .type-message .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-message-rev { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message-rev .slide-body { flex: 1; display: flex; flex-direction: row-reverse; gap: var(--gap-xl); align-items: center; }
+  .type-message-rev .slide-text { flex: 0 0 42%; }
+  .type-message-rev .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-diagram { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-diagram .diagram-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-compare { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); }
+  .compare-table th { background: var(--color-accent-mid); color: var(--color-text); padding: 14px 22px; text-align: left; font-weight: var(--fw-semibold); font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.08em; }
+  .compare-table th:first-child { border-radius: 6px 0 0 0; } .compare-table th:last-child { border-radius: 0 6px 0 0; }
+  .compare-table td { padding: 14px 22px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .compare-table tr:nth-child(even) td { background: var(--color-surface); }
+  .compare-table .highlight-cell { color: var(--color-success); font-weight: var(--fw-medium); }
+
+  .slide-inner.type-summary { padding: var(--slide-padding-y) var(--slide-padding-x); justify-content: center; }
+  .type-summary .slide-heading { margin-bottom: var(--gap-xl); text-align: center; }
+  .summary-grid { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .summary-card { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 28px 24px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .summary-card .card-num { font-size: var(--fs-hero); font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; }
+  .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+  .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+  .badge-aws { background: var(--color-aws-dim); color: var(--color-aws); }
+  .badge-k8s { background: var(--color-k8s-dim); color: var(--color-k8s); }
+  .bullet-list { list-style: none; }
+  .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
+  .bullet-list li strong { color: var(--color-text); font-weight: var(--fw-medium); }
+  .highlight { color: var(--color-accent); font-weight: var(--fw-semibold); }
+  .hl-success { color: var(--color-success); font-weight: var(--fw-semibold); }
+  .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
+  .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+  .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
+
+  /* Key Takeaway カスタムレイアウト */
+  .kt-headline { font-family: var(--font-heading); font-size: var(--fs-subheading); font-weight: var(--fw-semibold); color: var(--color-text); text-align: center; line-height: var(--lh-tight); margin-bottom: var(--gap-sm); }
+  .kt-diagram { display: flex; justify-content: center; margin-bottom: var(--gap-sm); }
+  .kt-points { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .kt-point { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 16px 20px; }
+  .kt-point .kt-num { font-size: 1.8rem; font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; margin-bottom: 4px; }
+  .kt-point .kt-title { font-size: var(--fs-caption); font-weight: var(--fw-semibold); color: var(--color-text); margin-bottom: 4px; }
+  .kt-point .kt-desc { font-size: 0.8rem; color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  @media screen {
+    .slide-inner > * { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .slide.in-view .slide-inner > * { opacity: 1; transform: translateY(0); }
+    .slide.in-view .slide-inner > *:nth-child(1) { transition-delay: 0.05s; }
+    .slide.in-view .slide-inner > *:nth-child(2) { transition-delay: 0.15s; }
+    .slide.in-view .slide-inner > *:nth-child(3) { transition-delay: 0.25s; }
+    .slide.in-view .slide-inner > *:nth-child(4) { transition-delay: 0.35s; }
+  }
+  @media print {
+    html { scroll-snap-type: none; }
+    body { background: var(--color-bg); }
+    .slide { width: 1280px; height: 720px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .slide-inner { width: 1280px; height: 720px; }
+    .slide-inner > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .nav-hint, .progress-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- Slide 1: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes Foundation</span>
+    </div>
+    <div class="title-main">
+      <span class="title-accent">コアワークロード</span>入門<br>Pod · Deployment · Job · CronJob
+    </div>
+    <div class="title-sub">Kubernetesの主要ワークロードを一覧で理解する</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- Slide 2: Key Takeaway -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-summary">
+    <div class="kt-headline">Pod・Deployment・Job・CronJobを使い分けることで、すべてのワークロードパターンに対応できる</div>
+    <div class="kt-diagram">
+      <svg viewBox="0 0 900 200" width="900" height="200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrKT" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+          </marker>
+        </defs>
+        <!-- Deployment -->
+        <rect x="10" y="20" width="180" height="50" rx="6" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="100" y="50" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#4F8FFF" font-weight="700">Deployment</text>
+        <text x="100" y="68" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">常時稼働・自動復旧</text>
+        <!-- arrow -->
+        <polyline points="190,45 235,45 235,95 280,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrKT)"/>
+        <!-- ReplicaSet -->
+        <rect x="10" y="90" width="180" height="50" rx="6" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+        <text x="100" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#4F8FFF">ReplicaSet</text>
+        <text x="100" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod数を保証</text>
+        <!-- arrow -->
+        <polyline points="190,115 235,115 235,95 280,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrKT)"/>
+        <!-- Pod -->
+        <rect x="280" y="70" width="140" height="50" rx="6" fill="rgba(79,143,255,0.2)" stroke="#4F8FFF" stroke-width="2"/>
+        <text x="350" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="16" fill="#4F8FFF" font-weight="700">Pod</text>
+        <text x="350" y="118" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">最小実行単位</text>
+
+        <!-- separator -->
+        <line x1="460" y1="10" x2="460" y2="190" stroke="#2A2E3D" stroke-width="1" stroke-dasharray="4,3"/>
+
+        <!-- Job -->
+        <rect x="490" y="20" width="160" height="50" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="570" y="50" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#34D399" font-weight="700">Job</text>
+        <text x="570" y="68" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">単発実行・完了保証</text>
+
+        <!-- CronJob -->
+        <rect x="490" y="90" width="160" height="50" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="570" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#FBBF24" font-weight="700">CronJob</text>
+        <text x="570" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">定期実行スケジュール</text>
+
+        <!-- ConfigMap -->
+        <rect x="680" y="55" width="200" height="50" rx="6" fill="rgba(155,109,255,0.12)" stroke="#9B6DFF" stroke-width="1.5"/>
+        <text x="780" y="85" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#9B6DFF" font-weight="700">ConfigMap</text>
+        <text x="780" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">設定の外部注入</text>
+        <!-- arrows to ConfigMap -->
+        <polyline points="650,45 665,45 665,80 677,80" fill="none" stroke="#9B6DFF" stroke-width="1.2" marker-end="url(#arrCM)"/>
+        <polyline points="650,115 665,115 665,80 677,80" fill="none" stroke="#9B6DFF" stroke-width="1.2" marker-end="url(#arrCM)"/>
+        <defs>
+          <marker id="arrCM" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#9B6DFF"/>
+          </marker>
+        </defs>
+
+        <!-- labels -->
+        <text x="235" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">常時稼働ワークロード</text>
+        <text x="640" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">バッチワークロード</text>
+      </svg>
+    </div>
+    <div class="kt-points">
+      <div class="kt-point">
+        <div class="kt-num">01</div>
+        <div class="kt-title">Podが最小単位</div>
+        <div class="kt-desc">コンテナの実行単位。Deploymentが自動的にPodを管理・復旧する。直接Podを作ることは少ない</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">02</div>
+        <div class="kt-title">Job/CronJobでバッチ管理</div>
+        <div class="kt-desc">単発実行はJob、定期実行はCronJob。ECSのRunTask+EventBridgeを1つのマニフェストで完結させる</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">03</div>
+        <div class="kt-title">ConfigMapで設定を分離</div>
+        <div class="kt-desc">環境変数・設定ファイルをPodから切り離す。AWSのSSM Parameter Store相当の役割を担う</div>
+      </div>
+    </div>
+    <span class="page-num">2 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 3: type-message — PodはKubernetesの最小実行単位 -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      PodはKubernetesの最小実行単位
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>1つ以上のコンテナ</strong>をまとめた実行単位。同一Pod内のコンテナはlocalhost通信・ボリューム共有が可能</li>
+          <li>ECSタスクに相当。ただし<strong>Podを直接作ることは少なく</strong>、Deploymentや Jobで間接的に管理する</li>
+          <li>Podが壊れても<span class="hl-success">Deploymentが自動再起動</span>する。IPは再起動のたびに変わるためServiceで名前解決する</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 320" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+            </marker>
+          </defs>
+          <!-- Node -->
+          <rect x="10" y="10" width="420" height="290" rx="8" fill="none" stroke="#2A2E3D" stroke-width="1.5" stroke-dasharray="6,4"/>
+          <text x="30" y="36" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="500">Node（EC2インスタンス）</text>
+          <!-- Pod A -->
+          <rect x="30" y="55" width="175" height="120" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="117" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">Pod A</text>
+          <rect x="48" y="95" width="140" height="32" rx="4" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="118" y="115" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0">コンテナ: api</text>
+          <rect x="48" y="135" width="140" height="32" rx="4" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="118" y="155" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">コンテナ: sidecar</text>
+          <text x="118" y="188" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">localhost通信・ボリューム共有</text>
+          <!-- Pod B -->
+          <rect x="235" y="55" width="175" height="120" rx="6" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="322" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">Pod B</text>
+          <rect x="253" y="95" width="140" height="32" rx="4" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="323" y="115" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0">コンテナ: worker</text>
+          <text x="323" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">IP: 10.0.0.5</text>
+          <text x="323" y="183" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">再起動でIPが変わる</text>
+          <!-- Service -->
+          <rect x="130" y="225" width="180" height="44" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="220" y="252" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399" font-weight="600">Service（固定エンドポイント）</text>
+          <!-- arrows from Pod to Service -->
+          <polyline points="117,175 117,207 220,207 220,222" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrS)"/>
+          <polyline points="322,175 322,207 220,207 220,222" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrS)"/>
+          <defs>
+            <marker id="arrS" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">3 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 4: type-message-rev — DeploymentがPodを自動復旧・スケールする -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      DeploymentがPodを自動復旧・スケールする
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>ECSサービスに相当</strong>。replicasで起動Pod数を宣言し、常にその数を維持し続ける</li>
+          <li>Deploymentの裏側では<strong>ReplicaSet</strong>が動く。バージョン管理を担い、ロールバックを実現</li>
+          <li>image更新時は<span class="hl-success">ローリングアップデート</span>で無停止デプロイ。古いPodを少しずつ新しいPodに置き換える</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 320" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr4" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+            </marker>
+          </defs>
+          <!-- Deployment -->
+          <rect x="130" y="10" width="180" height="50" rx="6" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="220" y="40" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#4F8FFF" font-weight="700">Deployment</text>
+          <!-- arrow down -->
+          <polyline points="220,60 220,95 220,108" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr4)"/>
+          <!-- ReplicaSet -->
+          <rect x="110" y="108" width="220" height="50" rx="6" fill="rgba(79,143,255,0.10)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="220" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">ReplicaSet</text>
+          <!-- arrows to pods -->
+          <polyline points="150,158 150,173 80,173 80,188" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arr4)"/>
+          <polyline points="220,158 220,173 220,188" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arr4)"/>
+          <polyline points="290,158 290,173 360,173 360,188" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arr4)"/>
+          <!-- Pod 1 -->
+          <rect x="30" y="188" width="100" height="50" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="80" y="218" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF">Pod 1</text>
+          <!-- Pod 2 -->
+          <rect x="170" y="188" width="100" height="50" rx="5" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="220" y="218" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF">Pod 2</text>
+          <!-- Pod 3 (dead) -->
+          <rect x="310" y="188" width="100" height="50" rx="5" fill="rgba(248,113,113,0.08)" stroke="#F87171" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="360" y="210" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#F87171">Pod 3</text>
+          <text x="360" y="228" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">クラッシュ</text>
+          <!-- auto-recovery arrow -->
+          <polyline points="360,238 360,268 360,278" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrR)"/>
+          <rect x="310" y="278" width="100" height="32" rx="5" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="360" y="299" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">自動再起動</text>
+          <defs>
+            <marker id="arrR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">4 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 5: type-diagram — Deployment → ReplicaSet → Pod の階層構造 -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-diagram">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      kubectl apply 1回でDeployment→ReplicaSet→Podが揃う
+    </h2>
+    <div class="diagram-area">
+      <svg viewBox="0 0 1100 360" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrD5" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+          </marker>
+          <marker id="arrG5" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/>
+          </marker>
+        </defs>
+
+        <!-- kubectl apply -->
+        <rect x="10" y="140" width="160" height="50" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="90" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#FBBF24" font-weight="600">kubectl apply</text>
+        <text x="90" y="181" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">deployment.yaml</text>
+
+        <!-- arrow -->
+        <polyline points="170,165 215,165" fill="none" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#arrG5)"/>
+
+        <!-- Deployment box -->
+        <rect x="215" y="110" width="200" height="110" rx="8" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="315" y="140" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#4F8FFF" font-weight="700">Deployment</text>
+        <text x="315" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">replicas: 3</text>
+        <text x="315" y="180" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">image: myapp:1.0</text>
+        <text x="315" y="198" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">ECSサービス相当</text>
+
+        <!-- arrow -->
+        <polyline points="415,165 460,165" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrD5)"/>
+
+        <!-- ReplicaSet box -->
+        <rect x="460" y="110" width="200" height="110" rx="8" fill="rgba(79,143,255,0.10)" stroke="#4F8FFF" stroke-width="1"/>
+        <text x="560" y="140" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#4F8FFF" font-weight="600">ReplicaSet</text>
+        <text x="560" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">自動生成される</text>
+        <text x="560" y="180" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Pod数を常に保証</text>
+        <text x="560" y="198" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">直接操作しない</text>
+
+        <!-- arrows to pods -->
+        <polyline points="660,165 700,165 700,100 743,100" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrD5)"/>
+        <polyline points="660,165 700,165 700,165 743,165" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrD5)"/>
+        <polyline points="660,165 700,165 700,230 743,230" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arrD5)"/>
+
+        <!-- Pod 1 -->
+        <rect x="743" y="70" width="120" height="60" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="803" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">Pod</text>
+        <text x="803" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">IP: 10.0.0.1</text>
+        <!-- Pod 2 -->
+        <rect x="743" y="135" width="120" height="60" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="803" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">Pod</text>
+        <text x="803" y="185" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">IP: 10.0.0.2</text>
+        <!-- Pod 3 -->
+        <rect x="743" y="200" width="120" height="60" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+        <text x="803" y="230" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">Pod</text>
+        <text x="803" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">IP: 10.0.0.3</text>
+
+        <!-- rollback label -->
+        <rect x="880" y="140" width="200" height="50" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34D399" stroke-width="1"/>
+        <text x="980" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">kubectl rollout undo</text>
+        <text x="980" y="180" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">旧バージョンへ即時切り戻し</text>
+
+        <!-- bottom labels -->
+        <text x="315" y="300" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">マニフェストで宣言</text>
+        <text x="560" y="300" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">K8sが自動生成</text>
+        <text x="803" y="300" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">実際のコンテナ</text>
+      </svg>
+    </div>
+    <span class="page-num">5 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 6: type-message — Jobは単発・CronJobは定期実行 -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Jobは単発・CronJobは定期実行を担う
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>Job</strong>は処理が完了したら終了するPodを管理。DBマイグレーションや一時スクリプトに使う。ECSの<span class="highlight">RunTask相当</span></li>
+          <li><strong>CronJob</strong>はcron形式でJobを定期実行。AWSの<span class="highlight">EventBridge + ECSタスク実行相当</span>が1リソースで完結</li>
+          <li>Job/CronJobにはリトライ・完了確認がネイティブに組み込まれている。<strong>外部サービス不要</strong></li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 320" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr6" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+            </marker>
+            <marker id="arr6y" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/>
+            </marker>
+          </defs>
+
+          <!-- CronJob -->
+          <rect x="20" y="20" width="160" height="50" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+          <text x="100" y="46" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">CronJob</text>
+          <text x="100" y="64" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">schedule: "0 2 * * *"</text>
+
+          <!-- arrow CronJob → Job -->
+          <polyline points="100,70 100,93 100,106" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arr6y)"/>
+
+          <!-- Job -->
+          <rect x="20" y="106" width="160" height="50" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="100" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">Job</text>
+          <text x="100" y="150" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">backoffLimit: 3</text>
+
+          <!-- arrow Job → Pod -->
+          <polyline points="100,156 100,179 100,192" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arr6)"/>
+
+          <!-- Pod (job) -->
+          <rect x="30" y="192" width="140" height="50" rx="5" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+          <text x="100" y="218" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399">Pod（実行）</text>
+          <text x="100" y="236" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">完了したら終了</text>
+
+          <!-- Completion status -->
+          <rect x="240" y="106" width="180" height="136" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="330" y="130" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="600">ジョブの完了管理</text>
+          <text x="258" y="158" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">✓ 完了確認（Succeeded）</text>
+          <text x="258" y="182" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24">↺ 失敗時リトライ</text>
+          <text x="258" y="206" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">backoffLimitで上限指定</text>
+          <text x="258" y="228" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0">外部サービス不要</text>
+
+          <!-- AWSとの比較 -->
+          <text x="220" y="290" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">AWS: EventBridge + Lambda + ECS RunTask が 1リソースに</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">6 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 7: type-message-rev — ConfigMapで設定をPodに外部注入する -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      ConfigMapで設定をPodに外部注入する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>非機密の設定値</strong>（環境変数・設定ファイル）を管理。AWSの<span class="highlight">SSM Parameter Store / S3相当</span></li>
+          <li>envFromで一括注入、または個別に env.valueFrom で指定。<strong>コンテナイメージを変えずに</strong>設定だけ更新できる</li>
+          <li>機密情報（DBパスワード等）は<strong>Secret</strong>で管理。ConfigMapとSecretを使い分けることで設定の安全性を保つ</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr7" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#9B6DFF"/>
+            </marker>
+            <marker id="arr7r" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/>
+            </marker>
+          </defs>
+
+          <!-- ConfigMap -->
+          <rect x="20" y="40" width="155" height="80" rx="6" fill="rgba(155,109,255,0.12)" stroke="#9B6DFF" stroke-width="1.5"/>
+          <text x="97" y="68" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#9B6DFF" font-weight="700">ConfigMap</text>
+          <text x="97" y="88" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">APP_ENV: production</text>
+          <text x="97" y="106" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">LOG_LEVEL: info</text>
+
+          <!-- Secret -->
+          <rect x="20" y="150" width="155" height="80" rx="6" fill="rgba(248,113,113,0.10)" stroke="#F87171" stroke-width="1.5"/>
+          <text x="97" y="178" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Secret</text>
+          <text x="97" y="198" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">DB_PASSWORD: ****</text>
+          <text x="97" y="216" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">base64エンコード</text>
+
+          <!-- arrows to Pod -->
+          <polyline points="175,80 222,80 222,150 263,150" fill="none" stroke="#9B6DFF" stroke-width="1.5" marker-end="url(#arr7)"/>
+          <polyline points="175,190 222,190 222,150 263,150" fill="none" stroke="#F87171" stroke-width="1.5" marker-end="url(#arr7r)"/>
+
+          <!-- Pod -->
+          <rect x="263" y="100" width="155" height="100" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="340" y="130" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Pod</text>
+          <text x="340" y="152" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">envFrom:</text>
+          <text x="340" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">  configMapRef</text>
+          <text x="340" y="188" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">  secretRef</text>
+
+          <!-- Labels -->
+          <text x="97" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">非機密設定 ↕ 機密情報</text>
+          <text x="340" y="250" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">イメージ変更不要</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">7 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 8: type-compare — ワークロード種別の使い分け早見表 -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      ワークロード種別の使い分け早見表
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:18%">リソース</th>
+          <th style="width:25%">用途</th>
+          <th style="width:30%">AWSでいうと</th>
+          <th style="width:27%">使うタイミング</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Deployment</strong></td>
+          <td>常時稼働・自動復旧・スケール</td>
+          <td>ECSサービス + Auto Scaling</td>
+          <td class="highlight-cell">APIサーバー・Webアプリ</td>
+        </tr>
+        <tr>
+          <td><strong>ReplicaSet</strong></td>
+          <td>Pod数の保証（自動生成）</td>
+          <td>ECSサービスの必要タスク数</td>
+          <td>直接操作しない</td>
+        </tr>
+        <tr>
+          <td><strong>Job</strong></td>
+          <td>単発実行・完了保証</td>
+          <td>ECS RunTask</td>
+          <td class="highlight-cell">DBマイグレーション・一時処理</td>
+        </tr>
+        <tr>
+          <td><strong>CronJob</strong></td>
+          <td>定期実行スケジュール</td>
+          <td>EventBridge + ECSタスク実行</td>
+          <td class="highlight-cell">夜間バッチ・定期同期</td>
+        </tr>
+        <tr>
+          <td><strong>ConfigMap</strong></td>
+          <td>非機密設定の外部注入</td>
+          <td>SSM Parameter Store / S3</td>
+          <td class="highlight-cell">環境変数・設定ファイル</td>
+        </tr>
+      </tbody>
+    </table>
+    <span class="page-num">8 / 9</span>
+  </div>
+</div>
+
+<!-- Slide 9: type-summary — まとめ -->
+<div class="slide" id="slide-9">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">まとめ</h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">DeploymentでPodを管理する</div>
+        <div class="card-desc">Podを直接作らず、Deploymentで宣言的に管理。ReplicaSetが裏側でPod数を保証し、障害時に自動復旧・ローリングアップデートでゼロダウンタイムを実現</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">Job/CronJobでバッチを完結</div>
+        <div class="card-desc">単発はJob、定期はCronJob。リトライ・完了確認が組み込まれており、AWSのEventBridge+Lambda+RunTaskの組み合わせが1マニフェストに集約される</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">ConfigMap/Secretで設定を分離</div>
+        <div class="card-desc">設定をイメージから切り離すことで、環境ごとに同じイメージを使い回せる。機密はSecret、非機密はConfigMapで使い分けてセキュリティを確保</div>
+      </div>
+    </div>
+    <span class="page-num">9 / 9</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>
