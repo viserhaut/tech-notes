@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KubernetesでDBを永続化する</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --color-bg:           #0F1117;
+    --color-surface:      #1A1D27;
+    --color-surface-alt:  #232735;
+    --color-text:         #E8EAF0;
+    --color-text-sub:     #8B90A0;
+    --color-text-muted:   #5A5F73;
+    --color-border:       #2A2E3D;
+    --color-accent:       #4F8FFF;
+    --color-accent-dim:   rgba(79, 143, 255, 0.12);
+    --color-accent-mid:   rgba(79, 143, 255, 0.25);
+    --color-aws:          #FF9900;
+    --color-aws-dim:      rgba(255, 153, 0, 0.12);
+    --color-k8s:          #4F8FFF;
+    --color-k8s-dim:      rgba(79, 143, 255, 0.12);
+    --color-success:      #34D399;
+    --color-success-dim:  rgba(52, 211, 153, 0.12);
+    --color-warning:      #FBBF24;
+    --color-warning-dim:  rgba(251, 191, 36, 0.12);
+    --color-danger:       #F87171;
+    --color-danger-dim:   rgba(248, 113, 113, 0.12);
+    --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
+    --font-body:          'Noto Sans JP', 'Inter', sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+    --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
+    --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
+    --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
+    --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
+    --slide-padding-x: 72px; --slide-padding-y: 56px;
+    --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
+    --slide-width: 1280px; --slide-height: 720px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+  body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
+
+  .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
+  .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+  .slide-inner.type-title { justify-content: center; align-items: flex-start; padding: var(--slide-padding-y) var(--slide-padding-x); background: radial-gradient(ellipse 80% 60% at 90% 80%, var(--color-accent-dim) 0%, transparent 70%), var(--color-bg); }
+  .type-title .title-badge-row { display: flex; gap: var(--gap-xs); margin-bottom: var(--gap-lg); }
+  .type-title .title-main { font-family: var(--font-heading); font-size: var(--fs-hero); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: -0.02em; margin-bottom: var(--gap-md); max-width: 950px; }
+  .type-title .title-accent { color: var(--color-accent); }
+  .type-title .title-sub { font-size: var(--fs-subheading); color: var(--color-text-sub); font-weight: var(--fw-regular); }
+  .type-title .title-meta { position: absolute; bottom: var(--slide-padding-y); left: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  .type-message .slide-heading, .type-message-rev .slide-heading, .type-diagram .slide-heading, .type-compare .slide-heading { font-family: var(--font-heading); font-size: var(--fs-heading); font-weight: var(--fw-bold); line-height: var(--lh-tight); margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: var(--gap-sm); }
+  .slide-heading .heading-accent-bar { width: 4px; height: 1.4em; background: var(--color-accent); border-radius: 2px; flex-shrink: 0; }
+
+  .slide-inner.type-message { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message .slide-body { flex: 1; display: flex; gap: var(--gap-xl); align-items: center; }
+  .type-message .slide-text { flex: 0 0 42%; }
+  .type-message .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-message-rev { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message-rev .slide-body { flex: 1; display: flex; flex-direction: row-reverse; gap: var(--gap-xl); align-items: center; }
+  .type-message-rev .slide-text { flex: 0 0 42%; }
+  .type-message-rev .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-diagram { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-diagram .diagram-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  .slide-inner.type-compare { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); }
+  .compare-table th { background: var(--color-accent-mid); color: var(--color-text); padding: 14px 22px; text-align: left; font-weight: var(--fw-semibold); font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.08em; }
+  .compare-table th:first-child { border-radius: 6px 0 0 0; } .compare-table th:last-child { border-radius: 0 6px 0 0; }
+  .compare-table td { padding: 14px 22px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .compare-table tr:nth-child(even) td { background: var(--color-surface); }
+  .compare-table .highlight-cell { color: var(--color-success); font-weight: var(--fw-medium); }
+
+  .slide-inner.type-summary { padding: var(--slide-padding-y) var(--slide-padding-x); justify-content: center; }
+  .type-summary .slide-heading { margin-bottom: var(--gap-xl); text-align: center; }
+  .summary-grid { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .summary-card { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 28px 24px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .summary-card .card-num { font-size: var(--fs-hero); font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; }
+  .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+  .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+  .badge-k8s { background: var(--color-k8s-dim); color: var(--color-k8s); }
+  .badge-aws { background: var(--color-aws-dim); color: var(--color-aws); }
+  .bullet-list { list-style: none; }
+  .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
+  .bullet-list li strong { color: var(--color-text); font-weight: var(--fw-medium); }
+  .highlight { color: var(--color-accent); font-weight: var(--fw-semibold); }
+  .hl-success { color: var(--color-success); font-weight: var(--fw-semibold); }
+  .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
+  .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+  .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
+
+  .kt-headline { font-family: var(--font-heading); font-size: var(--fs-subheading); font-weight: var(--fw-semibold); color: var(--color-text); text-align: center; line-height: var(--lh-tight); margin-bottom: var(--gap-sm); }
+  .kt-diagram { display: flex; justify-content: center; margin-bottom: var(--gap-sm); }
+  .kt-points { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .kt-point { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 16px 20px; }
+  .kt-point .kt-num { font-size: 1.8rem; font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; margin-bottom: 4px; }
+  .kt-point .kt-title { font-size: var(--fs-caption); font-weight: var(--fw-semibold); color: var(--color-text); margin-bottom: 4px; }
+  .kt-point .kt-desc { font-size: 0.8rem; color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  @media screen {
+    .slide-inner > * { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .slide.in-view .slide-inner > * { opacity: 1; transform: translateY(0); }
+    .slide.in-view .slide-inner > *:nth-child(1) { transition-delay: 0.05s; }
+    .slide.in-view .slide-inner > *:nth-child(2) { transition-delay: 0.15s; }
+    .slide.in-view .slide-inner > *:nth-child(3) { transition-delay: 0.25s; }
+    .slide.in-view .slide-inner > *:nth-child(4) { transition-delay: 0.35s; }
+  }
+  @media print {
+    html { scroll-snap-type: none; }
+    body { background: var(--color-bg); }
+    .slide { width: 1280px; height: 720px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .slide-inner { width: 1280px; height: 720px; }
+    .slide-inner > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .nav-hint, .progress-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- Slide 1: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes Foundation</span>
+    </div>
+    <div class="title-main">
+      Kubernetesで<br><span class="title-accent">DBを永続化</span>する
+    </div>
+    <div class="title-sub">StatefulSet · PV/PVC · Secret の3本柱</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- Slide 2: Key Takeaway -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-summary">
+    <div class="kt-headline">StatefulSet・PV/PVC・Secretの3本柱でDBをKubernetesで安全に永続化できる</div>
+    <div class="kt-diagram">
+      <svg viewBox="0 0 860 190" width="860" height="190" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrKT" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+          </marker>
+          <marker id="arrKTs" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/>
+          </marker>
+          <marker id="arrKTg" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+          </marker>
+        </defs>
+        <!-- StatefulSet -->
+        <rect x="10" y="30" width="170" height="50" rx="6" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="95" y="58" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">StatefulSet</text>
+        <text x="95" y="75" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod名・ボリューム固定</text>
+        <!-- arrow -->
+        <polyline points="180,55 220,55 220,95 258,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arrKT)"/>
+
+        <!-- PVC -->
+        <rect x="10" y="105" width="170" height="50" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="95" y="133" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">PVC</text>
+        <text x="95" y="150" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ストレージ申請書</text>
+        <!-- arrow -->
+        <polyline points="180,130 220,130 220,95 258,95" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arrKT)"/>
+
+        <!-- Pod (postgres-0) -->
+        <rect x="258" y="70" width="155" height="50" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="2"/>
+        <text x="335" y="98" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">postgres-0</text>
+        <text x="335" y="114" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">固定名・固定ボリューム</text>
+
+        <!-- PV -->
+        <rect x="440" y="70" width="145" height="50" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="512" y="98" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">PV</text>
+        <text x="512" y="114" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">実ストレージ</text>
+        <!-- arrow -->
+        <polyline points="413,95 437,95" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arrKTg)"/>
+
+        <!-- Secret -->
+        <rect x="620" y="55" width="220" height="80" rx="6" fill="rgba(248,113,113,0.10)" stroke="#F87171" stroke-width="1.5"/>
+        <text x="730" y="83" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Secret</text>
+        <text x="730" y="103" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">DB_PASSWORD: ****</text>
+        <text x="730" y="120" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">base64エンコード</text>
+        <!-- arrow from Pod to Secret -->
+        <polyline points="413,85 490,85 490,65 617,65" fill="none" stroke="#F87171" stroke-width="1.2" marker-end="url(#arrKTs)"/>
+      </svg>
+    </div>
+    <div class="kt-points">
+      <div class="kt-point">
+        <div class="kt-num">01</div>
+        <div class="kt-title">StatefulSetでPod名を固定</div>
+        <div class="kt-desc">Deploymentと違いPod名が postgres-0 と固定される。再起動しても同じボリュームが再アタッチされデータが消えない</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">02</div>
+        <div class="kt-title">PVCで動的プロビジョニング</div>
+        <div class="kt-desc">PVCを定義するだけでK8sが自動でPVを生成・割当。AWSではEBSが動的に作成されStatefulSetに紐づく</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">03</div>
+        <div class="kt-title">Secretで認証情報を分離</div>
+        <div class="kt-desc">DBパスワードをSecretで管理しマニフェストに直書きしない。本番ではAWS Secrets Manager + External Secrets Operatorを使う</div>
+      </div>
+    </div>
+    <span class="page-num">2 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 3: type-message — Deploymentではデータが消える理由 -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Deploymentではデータが消える理由
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>DeploymentのPodは<strong>ステートレス前提</strong>。Pod名がランダムに変わり、再起動のたびに<span class="hl-danger">ストレージが切り離される</span></li>
+          <li>DBのデータはコンテナ内部のファイルシステムに書かれる。Podが削除されると<strong>データも一緒に消える</strong></li>
+          <li>解決策は<span class="highlight">StatefulSet + PersistentVolume</span>の組み合わせ。Podに固定名と永続ストレージを割り当てる</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr3d" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/>
+            </marker>
+          </defs>
+          <!-- Deployment scenario -->
+          <text x="220" y="24" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="600">Deploymentの場合（危険）</text>
+
+          <rect x="130" y="38" width="160" height="44" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="210" y="64" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF">Pod（ランダム名）</text>
+
+          <!-- data written -->
+          <rect x="155" y="96" width="110" height="32" rx="4" fill="rgba(52,211,153,0.10)" stroke="#34D399" stroke-width="1"/>
+          <text x="210" y="116" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">データ書き込み</text>
+
+          <!-- crash -->
+          <polyline points="210,82 210,93" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#arr3g)"/>
+          <defs><marker id="arr3g" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#34D399"/></marker></defs>
+
+          <!-- delete arrow -->
+          <polyline points="210,128 210,153" fill="none" stroke="#F87171" stroke-width="1.5" marker-end="url(#arr3d)"/>
+          <text x="225" y="146" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">削除</text>
+
+          <!-- lost data -->
+          <rect x="100" y="155" width="220" height="44" rx="6" fill="rgba(248,113,113,0.10)" stroke="#F87171" stroke-width="1.5" stroke-dasharray="5,3"/>
+          <text x="210" y="181" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#F87171" font-weight="600">データ消失</text>
+
+          <!-- new pod -->
+          <polyline points="210,199 210,222" fill="none" stroke="#5A5F73" stroke-width="1.2" marker-end="url(#arr3gray)"/>
+          <defs><marker id="arr3gray" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5A5F73"/></marker></defs>
+          <rect x="130" y="222" width="160" height="44" rx="6" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="210" y="244" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF">新しいPod（別名）</text>
+          <text x="210" y="260" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">空のストレージ</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">3 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 4: type-message-rev — StatefulSetがPodとストレージを1対1で紐づける -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      StatefulSetがPodとストレージを1対1で紐づける
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>Pod名が<strong>postgres-0・postgres-1</strong>と固定される。再起動しても同じ名前が維持され、同じPVCが再アタッチされる</li>
+          <li><strong>Headless Service</strong>（ClusterIP: None）でPodごとに固定DNS名を付与。`postgres-0.postgres-service` でアクセス可能</li>
+          <li>スケール時は<span class="hl-success">順序通りに起動・終了</span>。DBのレプリケーション構成を安全に管理できる</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr4b" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+            </marker>
+            <marker id="arr4g" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+            </marker>
+          </defs>
+          <!-- StatefulSet -->
+          <rect x="130" y="10" width="180" height="44" rx="6" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="220" y="37" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">StatefulSet</text>
+
+          <!-- arrows to pods -->
+          <polyline points="185,54 155,54 155,98 168,98" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arr4b)"/>
+          <polyline points="255,54 285,54 285,98 298,98" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#arr4b)"/>
+
+          <!-- Pod 0 -->
+          <rect x="50" y="98" width="140" height="50" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="120" y="126" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">postgres-0</text>
+          <text x="120" y="142" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">固定名</text>
+
+          <!-- Pod 1 -->
+          <rect x="250" y="98" width="140" height="50" rx="6" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="320" y="126" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="600">postgres-1</text>
+          <text x="320" y="142" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">固定名</text>
+
+          <!-- arrows to PVC -->
+          <polyline points="120,148 120,178 120,191" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arr4g)"/>
+          <polyline points="320,148 320,178 320,191" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arr4g)"/>
+
+          <!-- PVC 0 -->
+          <rect x="50" y="191" width="140" height="44" rx="5" fill="rgba(52,211,153,0.10)" stroke="#34D399" stroke-width="1.5"/>
+          <text x="120" y="217" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">PVC-0（専用）</text>
+
+          <!-- PVC 1 -->
+          <rect x="250" y="191" width="140" height="44" rx="5" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+          <text x="320" y="217" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">PVC-1（専用）</text>
+
+          <!-- Headless Service -->
+          <rect x="80" y="252" width="280" height="40" rx="6" fill="rgba(251,191,36,0.10)" stroke="#FBBF24" stroke-width="1.2"/>
+          <text x="220" y="276" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24">Headless Service（DNS名で個別アクセス）</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">4 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 5: type-diagram — PVC → PV → ストレージの動的プロビジョニング -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-diagram">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      PVCを定義するだけでK8sがPVを自動生成する
+    </h2>
+    <div class="diagram-area">
+      <svg viewBox="0 0 1080 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr5b" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+          </marker>
+          <marker id="arr5g" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/>
+          </marker>
+          <marker id="arr5y" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/>
+          </marker>
+        </defs>
+
+        <!-- Step 1: StatefulSet defines PVC -->
+        <rect x="10" y="110" width="200" height="80" rx="8" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="110" y="142" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">StatefulSet</text>
+        <text x="110" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">volumeClaimTemplates:</text>
+        <text x="110" y="178" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">storage: 10Gi</text>
+        <text x="110" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">① PVC要求を定義</text>
+
+        <!-- arrow -->
+        <polyline points="210,150 258,150" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr5b)"/>
+
+        <!-- Step 2: PVC -->
+        <rect x="258" y="110" width="180" height="80" rx="8" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="348" y="145" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#FBBF24" font-weight="700">PVC</text>
+        <text x="348" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">申請書：10Gi欲しい</text>
+        <text x="348" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">② 申請を受理</text>
+
+        <!-- arrow -->
+        <polyline points="438,150 486,150" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#arr5y)"/>
+
+        <!-- Step 3: StorageClass / K8s -->
+        <rect x="486" y="100" width="190" height="100" rx="8" fill="rgba(155,109,255,0.10)" stroke="#9B6DFF" stroke-width="1.5"/>
+        <text x="581" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#9B6DFF" font-weight="700">StorageClass</text>
+        <text x="581" y="158" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">動的プロビジョニング</text>
+        <text x="581" y="175" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">自動でPVを生成</text>
+        <text x="581" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">③ PVを自動生成</text>
+
+        <!-- arrow -->
+        <polyline points="676,150 724,150" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arr5g)"/>
+
+        <!-- Step 4: PV -->
+        <rect x="724" y="110" width="155" height="80" rx="8" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="801" y="145" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="14" fill="#34D399" font-weight="700">PV</text>
+        <text x="801" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">実ストレージ 10Gi</text>
+        <text x="801" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">④ 実ストレージ確保</text>
+
+        <!-- arrow -->
+        <polyline points="879,150 927,150" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#arr5g)"/>
+
+        <!-- Step 5: Actual storage -->
+        <rect x="927" y="100" width="140" height="100" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.5"/>
+        <text x="997" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#E8EAF0" font-weight="600">EBS / hostPath</text>
+        <text x="997" y="158" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">実際のディスク</text>
+        <text x="997" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">⑤ マウント完了</text>
+
+        <!-- bottom note -->
+        <rect x="258" y="220" width="720" height="40" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1"/>
+        <text x="618" y="245" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399">PVCを書くだけでよい — PVの作成・紐付けはK8sが自動で行う</text>
+      </svg>
+    </div>
+    <span class="page-num">5 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 6: type-message — SecretでDB認証情報を安全に管理する -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      SecretでDB認証情報を安全に管理する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>Secret</strong>はパスワード・トークン等の機密情報をbase64エンコードして保管。<span class="hl-danger">マニフェストへの直書きを防ぐ</span></li>
+          <li>Podからは<strong>envFrom: secretRef</strong>で環境変数として注入。コンテナイメージに機密情報を含めない</li>
+          <li>本番では<span class="highlight">AWS Secrets Manager + External Secrets Operator</span>で自動同期。SecretのGitコミットを避けることが重要</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 440 280" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr6r" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/>
+            </marker>
+            <marker id="arr6b" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto">
+              <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+            </marker>
+          </defs>
+
+          <!-- Secret -->
+          <rect x="20" y="30" width="175" height="100" rx="6" fill="rgba(248,113,113,0.10)" stroke="#F87171" stroke-width="1.5"/>
+          <text x="107" y="60" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">Secret</text>
+          <text x="107" y="82" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">POSTGRES_USER: cG9zdGdyZXM=</text>
+          <text x="107" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">POSTGRES_PASSWORD: ****</text>
+          <text x="107" y="118" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">base64エンコード</text>
+
+          <!-- arrow to Pod -->
+          <polyline points="195,80 242,80 242,120 283,120" fill="none" stroke="#F87171" stroke-width="1.5" marker-end="url(#arr6r)"/>
+
+          <!-- Pod -->
+          <rect x="283" y="80" width="140" height="90" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="353" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="600">postgres-0</text>
+          <text x="353" y="130" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">envFrom:</text>
+          <text x="353" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">  secretRef: postgres-secret</text>
+
+          <!-- Production pattern -->
+          <rect x="20" y="170" width="395" height="90" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="30" y="195" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73" font-weight="600">本番環境の推奨パターン</text>
+          <rect x="30" y="205" width="175" height="44" rx="4" fill="rgba(255,153,0,0.10)" stroke="#FF9900" stroke-width="1"/>
+          <text x="117" y="226" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FF9900">AWS Secrets Manager</text>
+          <text x="117" y="243" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">実際の機密値を保管</text>
+          <polyline points="205,227 240,227 240,227 263,227" fill="none" stroke="#FF9900" stroke-width="1.2" marker-end="url(#arr6aws)"/>
+          <defs><marker id="arr6aws" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#FF9900"/></marker></defs>
+          <rect x="263" y="205" width="140" height="44" rx="4" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1"/>
+          <text x="333" y="226" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF">External Secrets</text>
+          <text x="333" y="243" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">K8s Secretに自動同期</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">6 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 7: type-compare — Deployment vs StatefulSet -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Deployment vs StatefulSet — 使い分け基準
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:22%">観点</th>
+          <th style="width:39%">Deployment</th>
+          <th style="width:39%">StatefulSet</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Pod名</strong></td>
+          <td>ランダムなサフィックス（例: app-7d6f8b）</td>
+          <td class="highlight-cell">固定インデックス（例: postgres-0）</td>
+        </tr>
+        <tr>
+          <td><strong>ストレージ</strong></td>
+          <td>Pod削除で消える（ステートレス前提）</td>
+          <td class="highlight-cell">PVCが固定で再アタッチされる</td>
+        </tr>
+        <tr>
+          <td><strong>スケール順序</strong></td>
+          <td>並列起動・並列終了</td>
+          <td class="highlight-cell">順序通りに起動（0→1→2）・逆順で終了</td>
+        </tr>
+        <tr>
+          <td><strong>DNS</strong></td>
+          <td>Serviceの仮想IP経由</td>
+          <td class="highlight-cell">Pod個別のDNS名（Headless Service）</td>
+        </tr>
+        <tr>
+          <td><strong>使用場面</strong></td>
+          <td>APIサーバー・Webアプリ・Worker</td>
+          <td class="highlight-cell">DB・メッセージキュー・ログバッファ</td>
+        </tr>
+      </tbody>
+    </table>
+    <span class="page-num">7 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 8: type-summary — まとめ -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">まとめ</h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">StatefulSetでPod名を固定する</div>
+        <div class="card-desc">Pod名が postgres-0 と固定されるため再起動後も同じPVCが再アタッチされデータが消えない。DBにはDeploymentではなくStatefulSetを使う</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">PVCを書くだけで動的プロビジョニング</div>
+        <div class="card-desc">PVCを定義するだけでStorageClassがPVを自動生成。AWSではEBSが自動作成されStatefulSetに紐づく。PVを手動で作る必要はない</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">SecretはGitに入れない</div>
+        <div class="card-desc">パスワードはSecretで管理しマニフェストに直書きしない。本番ではExternal Secrets OperatorでAWS Secrets Managerと自動同期する</div>
+      </div>
+    </div>
+    <span class="page-num">8 / 8</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>
