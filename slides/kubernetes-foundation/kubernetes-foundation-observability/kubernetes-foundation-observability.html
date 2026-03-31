@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kubernetesの運用監視 — Probe・HPA・ログ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --color-bg:           #0F1117;
+    --color-surface:      #1A1D27;
+    --color-surface-alt:  #232735;
+    --color-text:         #E8EAF0;
+    --color-text-sub:     #8B90A0;
+    --color-text-muted:   #5A5F73;
+    --color-border:       #2A2E3D;
+
+    --color-accent:       #4F8FFF;
+    --color-accent-dim:   rgba(79, 143, 255, 0.12);
+    --color-accent-mid:   rgba(79, 143, 255, 0.25);
+
+    --color-success:      #34D399;
+    --color-success-dim:  rgba(52, 211, 153, 0.12);
+    --color-warning:      #FBBF24;
+    --color-warning-dim:  rgba(251, 191, 36, 0.12);
+    --color-danger:       #F87171;
+    --color-danger-dim:   rgba(248, 113, 113, 0.12);
+
+    --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
+    --font-body:          'Noto Sans JP', 'Inter', sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+
+    --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
+    --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
+    --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
+    --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
+
+    --slide-padding-x: 72px; --slide-padding-y: 56px;
+    --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
+    --slide-width: 1280px; --slide-height: 720px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+  body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
+
+  .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
+  .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* type-title */
+  .slide-inner.type-title { justify-content: center; align-items: flex-start; padding: var(--slide-padding-y) var(--slide-padding-x); background: radial-gradient(ellipse 80% 60% at 90% 80%, rgba(79, 143, 255, 0.12) 0%, transparent 70%), var(--color-bg); }
+  .type-title .title-badge-row { display: flex; gap: var(--gap-xs); margin-bottom: var(--gap-lg); }
+  .type-title .title-main { font-family: var(--font-heading); font-size: var(--fs-hero); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: -0.02em; margin-bottom: var(--gap-md); max-width: 950px; }
+  .type-title .title-accent { color: var(--color-accent); }
+  .type-title .title-sub { font-size: var(--fs-subheading); color: var(--color-text-sub); font-weight: var(--fw-regular); }
+  .type-title .title-meta { position: absolute; bottom: var(--slide-padding-y); left: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  /* shared heading */
+  .type-message .slide-heading, .type-message-rev .slide-heading, .type-diagram .slide-heading, .type-compare .slide-heading { font-family: var(--font-heading); font-size: var(--fs-heading); font-weight: var(--fw-bold); line-height: var(--lh-tight); margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: var(--gap-sm); }
+  .slide-heading .heading-accent-bar { width: 4px; height: 1.4em; background: var(--color-accent); border-radius: 2px; flex-shrink: 0; }
+
+  /* type-message */
+  .slide-inner.type-message { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message .slide-body { flex: 1; display: flex; gap: var(--gap-xl); align-items: center; }
+  .type-message .slide-text { flex: 0 0 42%; }
+  .type-message .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-message-rev */
+  .slide-inner.type-message-rev { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message-rev .slide-body { flex: 1; display: flex; flex-direction: row-reverse; gap: var(--gap-xl); align-items: center; }
+  .type-message-rev .slide-text { flex: 0 0 42%; }
+  .type-message-rev .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-diagram */
+  .slide-inner.type-diagram { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-diagram .diagram-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-compare */
+  .slide-inner.type-compare { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); }
+  .compare-table th { background: rgba(79, 143, 255, 0.25); color: var(--color-text); padding: 14px 22px; text-align: left; font-weight: var(--fw-semibold); font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.08em; }
+  .compare-table th:first-child { border-radius: 6px 0 0 0; } .compare-table th:last-child { border-radius: 0 6px 0 0; }
+  .compare-table td { padding: 14px 22px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .compare-table tr:nth-child(even) td { background: var(--color-surface); }
+  .compare-table .highlight-cell { color: var(--color-success); font-weight: var(--fw-medium); }
+
+  /* type-summary */
+  .slide-inner.type-summary { padding: var(--slide-padding-y) var(--slide-padding-x); justify-content: center; }
+  .summary-grid { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .summary-card { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 28px 24px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .summary-card .card-num { font-size: var(--fs-hero); font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; }
+  .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+  .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  /* key takeaway */
+  .kt-headline { font-size: 1.3rem; font-weight: 700; text-align: center; color: var(--color-text); margin-bottom: 18px; line-height: 1.4; }
+  .kt-diagram { display: flex; justify-content: center; margin-bottom: 18px; }
+  .kt-points { display: flex; gap: 18px; max-width: 1100px; margin: 0 auto; }
+  .kt-point { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 16px; }
+  .kt-point .kt-num { font-size: 1.8rem; font-weight: 700; color: var(--color-accent); opacity: 0.3; line-height: 1; margin-bottom: 5px; }
+  .kt-point .kt-title { font-size: 0.98rem; font-weight: 600; margin-bottom: 5px; }
+  .kt-point .kt-desc { font-size: 0.85rem; color: var(--color-text-sub); line-height: 1.5; }
+
+  /* shared */
+  .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+  .badge-k8s { background: rgba(79, 143, 255, 0.12); color: var(--color-accent); }
+  .bullet-list { list-style: none; }
+  .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
+  .bullet-list li strong { color: var(--color-text); font-weight: var(--fw-medium); }
+  .highlight { color: var(--color-accent); font-weight: var(--fw-semibold); }
+  .hl-success { color: var(--color-success); font-weight: var(--fw-semibold); }
+  .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
+  .hl-warn { color: var(--color-warning); font-weight: var(--fw-semibold); }
+  .note { font-size: var(--fs-caption); color: var(--color-text-muted); margin-top: var(--gap-sm); }
+  .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+  .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
+
+  @media screen {
+    .slide-inner > * { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .slide.in-view .slide-inner > * { opacity: 1; transform: translateY(0); }
+    .slide.in-view .slide-inner > *:nth-child(1) { transition-delay: 0.05s; }
+    .slide.in-view .slide-inner > *:nth-child(2) { transition-delay: 0.15s; }
+    .slide.in-view .slide-inner > *:nth-child(3) { transition-delay: 0.25s; }
+    .slide.in-view .slide-inner > *:nth-child(4) { transition-delay: 0.35s; }
+  }
+  @media print {
+    html { scroll-snap-type: none; }
+    body { background: var(--color-bg); }
+    .slide { width: 1280px; height: 720px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .slide-inner { width: 1280px; height: 720px; }
+    .slide-inner > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .nav-hint, .progress-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- Slide 1: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes Foundation</span>
+    </div>
+    <div class="title-main">
+      Kubernetesの<span class="title-accent">運用監視</span><br>Probe・HPA・ログ
+    </div>
+    <div class="title-sub">自律回復 / オートスケール / ログ調査</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- Slide 2: type-summary (Key Takeaway) -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-summary">
+    <div class="kt-headline">Probe・requests/limits・HPA・ログ収集の4本柱でK8sアプリを自律回復・自動スケールする</div>
+    <div class="kt-diagram">
+      <svg viewBox="0 0 920 190" xmlns="http://www.w3.org/2000/svg" width="880" height="180">
+        <defs>
+          <marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+        </defs>
+        <!-- Probe -->
+        <rect x="10" y="55" width="160" height="80" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="90" y="88" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Probe</text>
+        <text x="90" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Readiness / Liveness</text>
+        <text x="90" y="124" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Startup</text>
+        <!-- arrow -->
+        <polyline points="170,95 213,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Pod -->
+        <rect x="215" y="40" width="180" height="110" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.3"/>
+        <text x="305" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">Pod</text>
+        <rect x="235" y="82" width="130" height="28" rx="4" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+        <text x="300" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">requests: 250m / 128Mi</text>
+        <rect x="235" y="114" width="130" height="22" rx="4" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+        <text x="300" y="129" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">limits: 500m / 256Mi</text>
+        <!-- arrow -->
+        <polyline points="395,95 438,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Metrics Server -->
+        <rect x="440" y="55" width="160" height="80" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="520" y="88" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">Metrics Server</text>
+        <text x="520" y="108" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">CPU/メモリ使用量を収集</text>
+        <text x="520" y="124" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">kubectl top</text>
+        <!-- arrow -->
+        <polyline points="600,95 643,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- HPA -->
+        <rect x="645" y="55" width="120" height="80" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="705" y="92" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">HPA</text>
+        <text x="705" y="112" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod数を自動増減</text>
+        <!-- arrow -->
+        <polyline points="765,95 808,95" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Logs -->
+        <rect x="810" y="55" width="100" height="80" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.3"/>
+        <text x="860" y="92" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#E8EAF0" font-weight="600">ログ</text>
+        <text x="860" y="112" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">kubectl logs</text>
+        <text x="860" y="128" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">stern</text>
+        <!-- labels -->
+        <text x="90" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">健全性監視</text>
+        <text x="305" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">リソース制限</text>
+        <text x="520" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">メトリクス収集</text>
+        <text x="705" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">オートスケール</text>
+        <text x="860" y="170" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">障害調査</text>
+      </svg>
+    </div>
+    <div class="kt-points">
+      <div class="kt-point">
+        <div class="kt-num">01</div>
+        <div class="kt-title">Probeで自律回復する</div>
+        <div class="kt-desc">Readiness/Liveness/StartupProbeがコンテナの状態を定期チェック。異常Podをトラフィックから外し、自動再起動する</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">02</div>
+        <div class="kt-title">requests/limits+HPAで自動スケール</div>
+        <div class="kt-desc">requestsはスケジューリング基準・limitsは暴走防止。Metrics ServerがCPU使用率を取得しHPAがPod数を自動増減する</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">03</div>
+        <div class="kt-title">ログ力がKubernetes運用力</div>
+        <div class="kt-desc">stdoutはノードのファイルに集約される。kubectl logs/sternで複数Podのログを横断調査。本番はFluentdでCloudWatchへ転送</div>
+      </div>
+    </div>
+    <span class="page-num">2 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 3: type-message -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Probeの3種類がコンテナの健全性を保つ
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>Readiness Probe</strong>：「リクエストを受け付けられるか」をチェック。<span class="hl-danger">NGならServiceから外す</span>。DBへの接続待ちなど起動直後の保護</li>
+          <li><strong>Liveness Probe</strong>：「コンテナが生きているか」をチェック。<span class="hl-danger">NGならコンテナを再起動</span>。ハングアップ・メモリリークの自動回復</li>
+          <li><strong>Startup Probe</strong>：起動に時間がかかるアプリ向け。<span class="hl-success">成功するまでLiveness/Readinessを無効化</span>。誤判定による再起動を防ぐ</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 430 330" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="p1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="p2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+            <marker id="p3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#F87171"/></marker>
+          </defs>
+          <!-- Pod -->
+          <rect x="150" y="10" width="130" height="50" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="215" y="40" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Pod（起動中）</text>
+          <!-- Startup arrow down -->
+          <polyline points="215,60 215,98" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#p1)"/>
+          <text x="225" y="85" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#FBBF24">Startup</text>
+          <!-- Startup Probe -->
+          <rect x="100" y="100" width="230" height="44" rx="5" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
+          <text x="215" y="118" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">Startup Probe</text>
+          <text x="215" y="136" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">成功するまでLiveness/Readiness無効</text>
+          <!-- arrows from startup -->
+          <polyline points="150,122 93,168" fill="none" stroke="#4F8FFF" stroke-width="1.3" marker-end="url(#p1)"/>
+          <polyline points="280,122 337,168" fill="none" stroke="#4F8FFF" stroke-width="1.3" marker-end="url(#p1)"/>
+          <!-- Readiness Probe -->
+          <rect x="20" y="170" width="130" height="60" rx="5" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.2"/>
+          <text x="85" y="196" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">Readiness</text>
+          <text x="85" y="214" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Serviceから除外</text>
+          <!-- arrow from Readiness NG -->
+          <polyline points="85,230 85,268" fill="none" stroke="#F87171" stroke-width="1.3" marker-end="url(#p3)"/>
+          <rect x="20" y="270" width="130" height="36" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="85" y="292" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">トラフィックをカット</text>
+          <!-- Liveness Probe -->
+          <rect x="280" y="170" width="130" height="60" rx="5" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.2"/>
+          <text x="345" y="196" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171" font-weight="600">Liveness</text>
+          <text x="345" y="214" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">コンテナ再起動</text>
+          <!-- arrow from Liveness NG -->
+          <polyline points="345,230 345,268" fill="none" stroke="#F87171" stroke-width="1.3" marker-end="url(#p3)"/>
+          <rect x="280" y="270" width="130" height="36" rx="5" fill="rgba(248,113,113,0.1)" stroke="#F87171" stroke-width="1"/>
+          <text x="345" y="292" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#F87171">自動再起動</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">3 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 4: type-message-rev -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      requests/limitsでリソースを安全に管理する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>requests</strong>：最低限確保するリソース量。<span class="hl-success">スケジューリングの判断基準</span>。requestsを元にNodeを選ぶ</li>
+          <li><strong>limits</strong>：使ってよい上限。<span class="hl-danger">CPUは絞られ、メモリ超過はOOM Kill</span>。ノイジーネイバー問題を防ぐ</li>
+          <li><strong>HPAの基準もrequests</strong>：CPU使用率= 実使用量 ÷ requests × 100%。limitsは無関係なので注意</li>
+        </ul>
+        <p class="note">設定なしのリスク: requestsゼロ→Nodeに過剰配置、limitsなし→Pod暴走でNode障害</p>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 420 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="r1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
+          </defs>
+          <!-- Node box -->
+          <rect x="10" y="10" width="390" height="270" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+          <text x="205" y="35" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">Node（CPU: 4コア / Memory: 8GB）</text>
+          <!-- CPU bar -->
+          <text x="30" y="68" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">CPU</text>
+          <rect x="70" y="54" width="300" height="24" rx="4" fill="#232735" stroke="#2A2E3D" stroke-width="1"/>
+          <!-- requests zone -->
+          <rect x="70" y="54" width="150" height="24" rx="4" fill="rgba(52,211,153,0.25)" stroke="none"/>
+          <text x="145" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">requests: 250m</text>
+          <!-- limits zone -->
+          <rect x="220" y="54" width="80" height="24" rx="0" fill="rgba(248,113,113,0.2)" stroke="none"/>
+          <text x="260" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#F87171">+limits分</text>
+          <!-- Memory bar -->
+          <text x="30" y="108" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Mem</text>
+          <rect x="70" y="94" width="300" height="24" rx="4" fill="#232735" stroke="#2A2E3D" stroke-width="1"/>
+          <rect x="70" y="94" width="120" height="24" rx="4" fill="rgba(52,211,153,0.25)" stroke="none"/>
+          <text x="130" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">requests: 128Mi</text>
+          <rect x="190" y="94" width="100" height="24" rx="0" fill="rgba(248,113,113,0.2)" stroke="none"/>
+          <text x="240" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#F87171">limits: 256Mi</text>
+          <!-- yaml -->
+          <rect x="30" y="140" width="340" height="120" rx="6" fill="#0F1117" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="50" y="164" font-family="JetBrains Mono, monospace" font-size="11" fill="#C792EA">resources:</text>
+          <text x="66" y="182" font-family="JetBrains Mono, monospace" font-size="11" fill="#C792EA">  requests:</text>
+          <text x="82" y="200" font-family="JetBrains Mono, monospace" font-size="11" fill="#8B90A0">    cpu: <tspan fill="#A5D6A7">"250m"</tspan>   <tspan fill="#5A5F73" font-size="9"># スケジューリング基準</tspan></text>
+          <text x="82" y="218" font-family="JetBrains Mono, monospace" font-size="11" fill="#8B90A0">    memory: <tspan fill="#A5D6A7">"128Mi"</tspan></text>
+          <text x="66" y="236" font-family="JetBrains Mono, monospace" font-size="11" fill="#C792EA">  limits:</text>
+          <text x="82" y="254" font-family="JetBrains Mono, monospace" font-size="11" fill="#8B90A0">    cpu: <tspan fill="#A5D6A7">"500m"</tspan>   <tspan fill="#5A5F73" font-size="9"># OOM Kill / CPU throttle</tspan></text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">4 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 5: type-diagram -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-diagram">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Metrics Server → HPA → スケールアウトの流れ
+    </h2>
+    <div class="diagram-area">
+      <svg viewBox="0 0 1080 310" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="h1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/></marker>
+          <marker id="h2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+        </defs>
+
+        <!-- Step 1: cAdvisor -->
+        <rect x="10" y="80" width="160" height="100" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+        <text x="90" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0" font-weight="600">①各Node</text>
+        <text x="90" y="132" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#E8EAF0" font-weight="600">cAdvisor</text>
+        <text x="90" y="152" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">CPU/Mem使用量を</text>
+        <text x="90" y="168" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ローカルで収集</text>
+        <!-- arrow -->
+        <polyline points="170,130 213,130" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#h1)"/>
+
+        <!-- Step 2: Metrics Server -->
+        <rect x="215" y="70" width="175" height="120" rx="8" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.5"/>
+        <text x="303" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="700" letter-spacing="0.05em">②Metrics Server</text>
+        <text x="303" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0" font-weight="600">全Node集約</text>
+        <text x="303" y="144" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">kubectl top pods/nodes</text>
+        <text x="303" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">HPAへメトリクス提供</text>
+        <!-- arrow -->
+        <polyline points="390,130 433,130" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#h1)"/>
+
+        <!-- Step 3: HPA -->
+        <rect x="435" y="70" width="175" height="120" rx="8" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="523" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="700" letter-spacing="0.05em">③HPA</text>
+        <text x="523" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0" font-weight="600">スケール判断</text>
+        <text x="523" y="144" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">CPU使用率 ÷ requests</text>
+        <text x="523" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">閾値超えでDeploymentに指示</text>
+        <!-- arrow -->
+        <polyline points="610,130 653,130" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#h2)"/>
+
+        <!-- Step 4: Deployment -->
+        <rect x="655" y="70" width="175" height="120" rx="8" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="743" y="100" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="700" letter-spacing="0.05em">④Deployment</text>
+        <text x="743" y="122" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0" font-weight="600">replicas変更</text>
+        <text x="743" y="144" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">minReplicas: 2</text>
+        <text x="743" y="162" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">maxReplicas: 5</text>
+        <!-- arrow -->
+        <polyline points="830,130 873,130" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#h2)"/>
+
+        <!-- Step 5: Pods -->
+        <rect x="875" y="60" width="185" height="130" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+        <text x="968" y="90" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0" font-weight="600">⑤スケールアウト</text>
+        <rect x="895" y="100" width="145" height="26" rx="4" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+        <text x="968" y="117" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">pod-0 / pod-1（既存）</text>
+        <rect x="895" y="132" width="145" height="26" rx="4" fill="rgba(52,211,153,0.25)" stroke="#34D399" stroke-width="1.5"/>
+        <text x="968" y="149" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399" font-weight="600">pod-2 / pod-3（新規）</text>
+        <text x="968" y="176" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#5A5F73">負荷低下でスケールイン</text>
+
+        <!-- HPA YAML snippet -->
+        <rect x="215" y="230" width="610" height="60" rx="6" fill="#0F1117" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="235" y="254" font-family="JetBrains Mono, monospace" font-size="10" fill="#C792EA">averageUtilization: <tspan fill="#F78C6C">50</tspan>   <tspan fill="#5A5F73"># CPU使用率がrequestsの50%を超えたらスケールアウト</tspan></text>
+        <text x="235" y="274" font-family="JetBrains Mono, monospace" font-size="10" fill="#8B90A0">minReplicas: <tspan fill="#F78C6C">2</tspan>  maxReplicas: <tspan fill="#F78C6C">5</tspan>   <tspan fill="#5A5F73"># HPAはrequestsを基準にする（limitsではない）</tspan></text>
+      </svg>
+    </div>
+    <span class="page-num">5 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 6: type-message -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      kubectl logsとsternでログを調査する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>PodのstdoutはNode内の<strong>/var/log/pods/</strong>に自動収集。<span class="highlight">kubectlはこのファイルを読んで表示</span>している</li>
+          <li><strong>kubectl logs &lt;pod&gt;</strong>：1Pod単位。<span class="hl-success">stern &lt;prefix&gt;</span>を使えば名前に部分一致する複数PodのログをPod別色分けで一括表示</li>
+          <li>本番EKSでは<span class="highlight">Fluentd/Fluent Bit</span>をDaemonSetで動かしてCloudWatch Logsへ転送。GKEはCloud Loggingに自動連携</li>
+        </ul>
+        <p class="note">ログを読む力 = Kubernetes運用力。障害調査は必ずPodのログから始まる</p>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 430 310" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="l1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="l2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          </defs>
+          <!-- Pod stdout -->
+          <rect x="20" y="10" width="120" height="44" rx="5" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.2"/>
+          <text x="80" y="35" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="600">Pod stdout</text>
+          <!-- arrow down -->
+          <polyline points="80,54 80,93" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#l1)"/>
+          <!-- Node log file -->
+          <rect x="10" y="95" width="140" height="60" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+          <text x="80" y="118" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#E8EAF0" font-weight="600">/var/log/pods/</text>
+          <text x="80" y="138" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Node内ログファイル</text>
+          <!-- kubectl logs arrow -->
+          <polyline points="150,115 198,80" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#l2)"/>
+          <text x="195" y="73" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">kubectl logs</text>
+          <!-- stern arrow -->
+          <polyline points="150,135 198,145" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#l2)"/>
+          <text x="205" y="150" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">stern</text>
+          <!-- Developer -->
+          <rect x="205" y="55" width="130" height="110" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1.2"/>
+          <text x="270" y="85" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">開発者</text>
+          <text x="270" y="105" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">複数Pod一括表示</text>
+          <text x="270" y="123" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod別に色分け</text>
+          <text x="270" y="141" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">リアルタイム追跡</text>
+          <!-- Fluentd arrow down -->
+          <polyline points="80,155 80,198" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#l1)"/>
+          <!-- Fluentd -->
+          <rect x="10" y="200" width="140" height="44" rx="5" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
+          <text x="80" y="226" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">Fluentd / Fluent Bit</text>
+          <!-- CloudWatch arrow -->
+          <polyline points="150,222 198,240" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#l1)"/>
+          <rect x="200" y="215" width="200" height="60" rx="5" fill="rgba(255,153,0,0.12)" stroke="#FF9900" stroke-width="1.2"/>
+          <text x="300" y="243" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FF9900" font-weight="600">CloudWatch Logs (AWS)</text>
+          <text x="300" y="261" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">GKEはCloud Loggingに自動連携</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">6 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 7: type-compare -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Readiness / Liveness / Startup Probe の使い分け
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:20%">Probe</th>
+          <th style="width:30%">チェック内容</th>
+          <th style="width:25%">失敗時のアクション</th>
+          <th style="width:25%">主な使用場面</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Readiness</strong></td>
+          <td>リクエストを受け付けられるか</td>
+          <td>Serviceのエンドポイントから除外</td>
+          <td class="highlight-cell">起動直後のDB接続待ち / デプロイ時の保護</td>
+        </tr>
+        <tr>
+          <td><strong>Liveness</strong></td>
+          <td>コンテナプロセスが生きているか</td>
+          <td>コンテナを自動再起動</td>
+          <td class="highlight-cell">ハングアップ / メモリリーク / 無限ループ検知</td>
+        </tr>
+        <tr>
+          <td><strong>Startup</strong></td>
+          <td>起動完了したか（猶予期間）</td>
+          <td>成功まで他ProbeはSKIP / 失敗で再起動</td>
+          <td class="highlight-cell">起動時間が変動するアプリ（Java等）の誤判定防止</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top: 24px; font-size: 0.9rem; color: #8B90A0;">
+      本番では <strong style="color: #E8EAF0">Readiness + Liveness の2つをセットで設定</strong>することが推奨。Startup Probeは起動時間がブレる場合に追加する。
+    </p>
+    <span class="page-num">7 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 8: type-summary -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">まとめ</h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">ProbeとrequestsはセットでON</div>
+        <div class="card-desc">Readiness+LivenessProbeで自律回復。requests/limitsを必ず設定してスケジューリング精度を上げ、Nodeの過負荷を防ぐ</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">HPAにはMetrics Serverが必要</div>
+        <div class="card-desc">EKSでは手動インストール必須。HPAはrequestsを基準にCPU使用率を計算するため、requestsの設定がHPA精度に直結する</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">ログ調査はsternから始める</div>
+        <div class="card-desc">kubectl logsは1Pod単位、sternで複数Pod横断。本番はFluentdでCloudWatch/Cloud Loggingへ集約。ログ力が運用力</div>
+      </div>
+    </div>
+    <span class="page-num">8 / 8</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>
