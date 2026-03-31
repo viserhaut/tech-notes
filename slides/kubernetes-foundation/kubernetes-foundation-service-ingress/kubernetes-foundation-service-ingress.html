@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KubernetesアプリをServiceとIngressで外部公開する</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --color-bg:           #0F1117;
+    --color-surface:      #1A1D27;
+    --color-surface-alt:  #232735;
+    --color-text:         #E8EAF0;
+    --color-text-sub:     #8B90A0;
+    --color-text-muted:   #5A5F73;
+    --color-border:       #2A2E3D;
+
+    --color-accent:       #4F8FFF;
+    --color-accent-dim:   rgba(79, 143, 255, 0.12);
+    --color-accent-mid:   rgba(79, 143, 255, 0.25);
+
+    --color-success:      #34D399;
+    --color-success-dim:  rgba(52, 211, 153, 0.12);
+    --color-warning:      #FBBF24;
+    --color-warning-dim:  rgba(251, 191, 36, 0.12);
+    --color-danger:       #F87171;
+    --color-danger-dim:   rgba(248, 113, 113, 0.12);
+
+    --font-heading:       'Noto Sans JP', 'Inter', sans-serif;
+    --font-body:          'Noto Sans JP', 'Inter', sans-serif;
+    --font-mono:          'JetBrains Mono', 'Fira Code', monospace;
+
+    --fs-hero: 3.6rem; --fs-title: 2.6rem; --fs-heading: 1.85rem;
+    --fs-subheading: 1.3rem; --fs-body: 1.05rem; --fs-caption: 0.85rem; --fs-code: 0.9rem;
+    --fw-bold: 700; --fw-semibold: 600; --fw-medium: 500; --fw-regular: 400;
+    --lh-tight: 1.25; --lh-normal: 1.55; --lh-relaxed: 1.7;
+
+    --slide-padding-x: 72px; --slide-padding-y: 56px;
+    --gap-xl: 56px; --gap-lg: 40px; --gap-md: 28px; --gap-sm: 16px; --gap-xs: 8px;
+    --slide-width: 1280px; --slide-height: 720px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; overflow-x: hidden; }
+  body { font-family: var(--font-body); color: var(--color-text); background: #000; line-height: var(--lh-normal); -webkit-font-smoothing: antialiased; }
+
+  .slide { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; scroll-snap-align: start; position: relative; }
+  .slide-inner { width: var(--slide-width); height: var(--slide-height); background: var(--color-bg); position: relative; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* type-title */
+  .slide-inner.type-title { justify-content: center; align-items: flex-start; padding: var(--slide-padding-y) var(--slide-padding-x); background: radial-gradient(ellipse 80% 60% at 90% 80%, rgba(79, 143, 255, 0.12) 0%, transparent 70%), var(--color-bg); }
+  .type-title .title-badge-row { display: flex; gap: var(--gap-xs); margin-bottom: var(--gap-lg); }
+  .type-title .title-main { font-family: var(--font-heading); font-size: var(--fs-hero); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: -0.02em; margin-bottom: var(--gap-md); max-width: 950px; }
+  .type-title .title-accent { color: var(--color-accent); }
+  .type-title .title-sub { font-size: var(--fs-subheading); color: var(--color-text-sub); font-weight: var(--fw-regular); }
+  .type-title .title-meta { position: absolute; bottom: var(--slide-padding-y); left: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); }
+
+  /* shared heading */
+  .type-message .slide-heading, .type-message-rev .slide-heading, .type-diagram .slide-heading, .type-compare .slide-heading, .type-code .slide-heading { font-family: var(--font-heading); font-size: var(--fs-heading); font-weight: var(--fw-bold); line-height: var(--lh-tight); margin-bottom: var(--gap-lg); display: flex; align-items: center; gap: var(--gap-sm); }
+  .slide-heading .heading-accent-bar { width: 4px; height: 1.4em; background: var(--color-accent); border-radius: 2px; flex-shrink: 0; }
+
+  /* type-message */
+  .slide-inner.type-message { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message .slide-body { flex: 1; display: flex; gap: var(--gap-xl); align-items: center; }
+  .type-message .slide-text { flex: 0 0 42%; }
+  .type-message .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-message-rev */
+  .slide-inner.type-message-rev { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-message-rev .slide-body { flex: 1; display: flex; flex-direction: row-reverse; gap: var(--gap-xl); align-items: center; }
+  .type-message-rev .slide-text { flex: 0 0 42%; }
+  .type-message-rev .slide-diagram { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-diagram */
+  .slide-inner.type-diagram { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .type-diagram .diagram-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+  /* type-compare */
+  .slide-inner.type-compare { padding: var(--slide-padding-y) var(--slide-padding-x); }
+  .compare-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-body); }
+  .compare-table th { background: rgba(79, 143, 255, 0.25); color: var(--color-text); padding: 14px 22px; text-align: left; font-weight: var(--fw-semibold); font-size: var(--fs-caption); text-transform: uppercase; letter-spacing: 0.08em; }
+  .compare-table th:first-child { border-radius: 6px 0 0 0; } .compare-table th:last-child { border-radius: 0 6px 0 0; }
+  .compare-table td { padding: 14px 22px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  .compare-table tr:nth-child(even) td { background: var(--color-surface); }
+  .compare-table .highlight-cell { color: var(--color-success); font-weight: var(--fw-medium); }
+
+  /* type-summary */
+  .slide-inner.type-summary { padding: var(--slide-padding-y) var(--slide-padding-x); justify-content: center; }
+  .type-summary .slide-heading { margin-bottom: var(--gap-xl); text-align: center; }
+  .summary-grid { display: flex; gap: var(--gap-md); max-width: 1100px; margin: 0 auto; }
+  .summary-card { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 28px 24px; display: flex; flex-direction: column; gap: var(--gap-sm); }
+  .summary-card .card-num { font-size: var(--fs-hero); font-weight: var(--fw-bold); color: var(--color-accent); opacity: 0.3; line-height: 1; }
+  .summary-card .card-title { font-size: var(--fs-subheading); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+  .summary-card .card-desc { font-size: var(--fs-body); color: var(--color-text-sub); line-height: var(--lh-normal); }
+
+  /* key takeaway layout */
+  .kt-headline { font-size: 1.35rem; font-weight: 700; text-align: center; color: var(--color-text); margin-bottom: 20px; line-height: 1.4; }
+  .kt-diagram { display: flex; justify-content: center; margin-bottom: 20px; }
+  .kt-points { display: flex; gap: 20px; max-width: 1100px; margin: 0 auto; }
+  .kt-point { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 18px; }
+  .kt-point .kt-num { font-size: 2rem; font-weight: 700; color: var(--color-accent); opacity: 0.3; line-height: 1; margin-bottom: 6px; }
+  .kt-point .kt-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+  .kt-point .kt-desc { font-size: 0.88rem; color: var(--color-text-sub); line-height: 1.5; }
+
+  /* shared components */
+  .badge { display: inline-block; padding: 5px 14px; border-radius: 5px; font-size: var(--fs-caption); font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+  .badge-k8s { background: rgba(79, 143, 255, 0.12); color: var(--color-accent); }
+  .bullet-list { list-style: none; }
+  .bullet-list li { font-size: var(--fs-body); padding: 10px 0 10px 28px; position: relative; line-height: var(--lh-normal); color: var(--color-text-sub); }
+  .bullet-list li::before { content: ''; position: absolute; left: 0; top: 18px; width: 8px; height: 8px; border-radius: 2px; background: var(--color-accent); opacity: 0.6; }
+  .bullet-list li strong { color: var(--color-text); font-weight: var(--fw-medium); }
+  .highlight { color: var(--color-accent); font-weight: var(--fw-semibold); }
+  .hl-success { color: var(--color-success); font-weight: var(--fw-semibold); }
+  .hl-danger { color: var(--color-danger); font-weight: var(--fw-semibold); }
+  .page-num { position: absolute; bottom: 20px; right: var(--slide-padding-x); font-size: var(--fs-caption); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+  .nav-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); color: rgba(255,255,255,0.5); padding: 8px 24px; border-radius: 20px; font-size: 12px; z-index: 100; pointer-events: none; }
+  .progress-bar { position: fixed; top: 0; left: 0; height: 2px; background: var(--color-accent); z-index: 200; transition: width 0.3s ease; }
+
+  @media screen {
+    .slide-inner > * { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .slide.in-view .slide-inner > * { opacity: 1; transform: translateY(0); }
+    .slide.in-view .slide-inner > *:nth-child(1) { transition-delay: 0.05s; }
+    .slide.in-view .slide-inner > *:nth-child(2) { transition-delay: 0.15s; }
+    .slide.in-view .slide-inner > *:nth-child(3) { transition-delay: 0.25s; }
+    .slide.in-view .slide-inner > *:nth-child(4) { transition-delay: 0.35s; }
+  }
+  @media print {
+    html { scroll-snap-type: none; }
+    body { background: var(--color-bg); }
+    .slide { width: 1280px; height: 720px; page-break-after: always; page-break-inside: avoid; overflow: hidden; }
+    .slide-inner { width: 1280px; height: 720px; }
+    .slide-inner > * { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .nav-hint, .progress-bar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="progress-bar" id="progress"></div>
+<div class="nav-hint">← → で移動</div>
+
+<!-- Slide 1: type-title -->
+<div class="slide in-view" id="slide-1">
+  <div class="slide-inner type-title">
+    <div class="title-badge-row">
+      <span class="badge badge-k8s">Kubernetes Foundation</span>
+    </div>
+    <div class="title-main">
+      KubernetesアプリをService・<br><span class="title-accent">Ingress</span>で外部公開する
+    </div>
+    <div class="title-sub">ClusterIP / NodePort / LoadBalancer · Ingress Controller</div>
+    <div class="title-meta">viserhaut — 2026</div>
+  </div>
+</div>
+
+<!-- Slide 2: type-summary (Key Takeaway) -->
+<div class="slide" id="slide-2">
+  <div class="slide-inner type-summary">
+    <div class="kt-headline">ServiceとIngressの2段構えで、PodをL4負荷分散→L7ルーティングで安全に外部公開できる</div>
+    <div class="kt-diagram">
+      <svg viewBox="0 0 900 200" xmlns="http://www.w3.org/2000/svg" width="860" height="190">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3.5" orient="auto">
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/>
+          </marker>
+        </defs>
+        <!-- Client -->
+        <rect x="10" y="75" width="110" height="50" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+        <text x="65" y="104" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#E8EAF0" font-weight="600">クライアント</text>
+        <!-- arrow -->
+        <polyline points="120,100 168,100" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Ingress Controller -->
+        <rect x="170" y="60" width="160" height="80" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="250" y="95" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Ingress</text>
+        <text x="250" y="115" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">L7ルーティング</text>
+        <!-- arrows to services -->
+        <polyline points="330,80 378,60" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <polyline points="330,120 378,140" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Service A -->
+        <rect x="380" y="30" width="150" height="50" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.2"/>
+        <text x="455" y="52" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#34D399" font-weight="600">Service (API)</text>
+        <text x="455" y="70" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ClusterIP</text>
+        <!-- Service B -->
+        <rect x="380" y="120" width="150" height="50" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
+        <text x="455" y="142" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#FBBF24" font-weight="600">Service (Web)</text>
+        <text x="455" y="160" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ClusterIP</text>
+        <!-- arrows to pods -->
+        <polyline points="530,55 578,40" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+        <polyline points="530,55 578,70" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#arrG)"/>
+        <polyline points="530,145 578,135" fill="none" stroke="#FBBF24" stroke-width="1.2" marker-end="url(#arrY)"/>
+        <polyline points="530,145 578,160" fill="none" stroke="#FBBF24" stroke-width="1.2" marker-end="url(#arrY)"/>
+        <!-- Pods -->
+        <rect x="580" y="20" width="90" height="38" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="625" y="43" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">api-pod-0</text>
+        <rect x="580" y="63" width="90" height="38" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="625" y="86" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">api-pod-1</text>
+        <rect x="580" y="118" width="90" height="38" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="625" y="141" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">web-pod-0</text>
+        <rect x="580" y="160" width="90" height="38" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="625" y="183" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">web-pod-1</text>
+        <!-- label -->
+        <text x="455" y="198" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">ホスト/パスで振り分け</text>
+        <defs>
+          <marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          <marker id="arrY" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/></marker>
+        </defs>
+      </svg>
+    </div>
+    <div class="kt-points">
+      <div class="kt-point">
+        <div class="kt-num">01</div>
+        <div class="kt-title">ServiceがPodの窓口を安定させる</div>
+        <div class="kt-desc">PodのIPが変わってもServiceのClusterIPは固定。セレクターで自動的に最新Podへ負荷分散される</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">02</div>
+        <div class="kt-title">外部公開はIngress+ClusterIPが正解</div>
+        <div class="kt-desc">NodePort/LoadBalancerは学習・暫定用。本番はIngress Controller+ClusterIPでL7ルーティングを実現する</div>
+      </div>
+      <div class="kt-point">
+        <div class="kt-num">03</div>
+        <div class="kt-title">Ingressはホスト/パスで振り分け</div>
+        <div class="kt-desc">1つのIngress Controller（Nginx Pod）が複数Serviceへルールベースで振り分ける。SSL終端も担う</div>
+      </div>
+    </div>
+    <span class="page-num">2 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 3: type-message -->
+<div class="slide" id="slide-3">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      PodのIPが変わる問題をServiceが解決する
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>Podは使い捨て前提。<span class="hl-danger">再起動のたびにIPが変わる</span>ためクライアントは接続先を追えない</li>
+          <li><strong>Service（ClusterIP）</strong>を置くと、固定の仮想IPと名前でPod群にアクセスできる</li>
+          <li>複数Podが存在する場合は<span class="hl-success">ラウンドロビンで自動負荷分散</span>。Podを入れ替えても接続先は変わらない</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 420 330" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="a1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="a2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+          </defs>
+          <!-- クライアント -->
+          <rect x="10" y="130" width="100" height="44" rx="6" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+          <text x="60" y="156" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#E8EAF0" font-weight="600">クライアント</text>
+          <!-- arrow to service -->
+          <polyline points="110,152 163,152" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#a1)"/>
+          <!-- Service -->
+          <rect x="165" y="118" width="130" height="68" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="230" y="148" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Service</text>
+          <text x="230" y="168" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ClusterIP（固定）</text>
+          <!-- arrows to pods -->
+          <polyline points="295,140 340,90" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#a2)"/>
+          <polyline points="295,152 340,152" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#a2)"/>
+          <polyline points="295,165 340,215" fill="none" stroke="#34D399" stroke-width="1.2" marker-end="url(#a2)"/>
+          <!-- pods -->
+          <rect x="342" y="65" width="65" height="44" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="375" y="89" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">pod-0</text>
+          <rect x="342" y="130" width="65" height="44" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="375" y="154" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">pod-1</text>
+          <rect x="342" y="195" width="65" height="44" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="375" y="219" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">pod-2</text>
+          <!-- DNS label -->
+          <rect x="10" y="250" width="380" height="52" rx="6" fill="rgba(79,143,255,0.08)" stroke="#4F8FFF" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="200" y="272" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="600">my-svc.default.svc.cluster.local</text>
+          <text x="200" y="292" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">固定DNSで常に同じ窓口にアクセス</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">3 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 4: type-message-rev -->
+<div class="slide" id="slide-4">
+  <div class="slide-inner type-message-rev">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Serviceには4つのタイプがある
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li><strong>ClusterIP</strong>：クラスタ内専用の仮想IP。<span class="hl-success">マイクロサービス間通信の標準</span></li>
+          <li><strong>Headless</strong>（ClusterIP: None）：仮想IPなし。<span class="highlight">PodのIPをDNSで直接解決</span>。StatefulSetのDB用</li>
+          <li><strong>NodePort</strong>：ノードのポート（30000〜32767）を開けて外部公開。<span class="hl-danger">学習・暫定用</span></li>
+          <li><strong>LoadBalancer</strong>：クラウドのLBを自動作成して外部公開。コストが高く管理が煩雑</li>
+        </ul>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 430 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="b1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
+          </defs>
+          <!-- ClusterIP -->
+          <rect x="20" y="10" width="180" height="60" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.3"/>
+          <text x="110" y="37" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#34D399" font-weight="700">ClusterIP</text>
+          <text x="110" y="57" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">クラスタ内通信・負荷分散</text>
+          <!-- Headless -->
+          <rect x="225" y="10" width="180" height="60" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.3"/>
+          <text x="315" y="37" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Headless</text>
+          <text x="315" y="57" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Pod個別DNS / StatefulSet用</text>
+          <!-- NodePort -->
+          <rect x="20" y="110" width="180" height="60" rx="6" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.3"/>
+          <text x="110" y="137" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#FBBF24" font-weight="700">NodePort</text>
+          <text x="110" y="157" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">ノードIP:ポートで外部公開</text>
+          <!-- LoadBalancer -->
+          <rect x="225" y="110" width="180" height="60" rx="6" fill="rgba(248,113,113,0.12)" stroke="#F87171" stroke-width="1.3"/>
+          <text x="315" y="137" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#F87171" font-weight="700">LoadBalancer</text>
+          <text x="315" y="157" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">クラウドLBを自動作成</text>
+          <!-- 推奨ラベル -->
+          <rect x="20" y="215" width="385" height="52" rx="6" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="213" y="238" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">本番推奨: ClusterIP + Ingress Controller</text>
+          <text x="213" y="258" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">L7ルーティング・SSL終端・複数Service対応</text>
+          <!-- 区分ラベル -->
+          <text x="40" y="100" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">クラスタ内</text>
+          <text x="40" y="200" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">外部公開</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">4 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 5: type-diagram -->
+<div class="slide" id="slide-5">
+  <div class="slide-inner type-diagram">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      NodePortからIngressへ — 外部公開の進化
+    </h2>
+    <div class="diagram-area">
+      <svg viewBox="0 0 1100 310" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="c1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#5A5F73"/></marker>
+          <marker id="c2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+        </defs>
+
+        <!-- Step 1: NodePort -->
+        <rect x="10" y="10" width="480" height="220" rx="8" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1.2"/>
+        <rect x="10" y="10" width="480" height="4" rx="2" fill="#FBBF24" opacity="0.6"/>
+        <text x="250" y="40" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="700" letter-spacing="0.08em">STEP 1 — NodePort（学習・暫定）</text>
+
+        <rect x="30" y="60" width="90" height="40" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="75" y="84" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">外部Client</text>
+        <polyline points="120,80 163,80" fill="none" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#c1)"/>
+        <rect x="165" y="55" width="120" height="50" rx="5" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
+        <text x="225" y="78" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">NodePort</text>
+        <text x="225" y="96" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">:30000 (L4)</text>
+        <polyline points="285,80 328,80" fill="none" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#c1)"/>
+        <rect x="330" y="55" width="100" height="50" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="380" y="84" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">Pod群</text>
+
+        <rect x="30" y="140" width="420" height="70" rx="5" fill="rgba(248,113,113,0.08)" stroke="#F87171" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="240" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#F87171">Serviceごとにポートを開ける必要がある</text>
+        <text x="240" y="185" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">IPアドレス直打ち / ホスト名・パスルーティング不可 / SSL終端不可</text>
+
+        <!-- Step 2: Ingress -->
+        <rect x="610" y="10" width="480" height="220" rx="8" fill="#1A1D27" stroke="#4F8FFF" stroke-width="1.2"/>
+        <rect x="610" y="10" width="480" height="4" rx="2" fill="#4F8FFF"/>
+        <text x="850" y="40" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF" font-weight="700" letter-spacing="0.08em">STEP 2 — Ingress + ClusterIP（本番推奨）</text>
+
+        <rect x="625" y="60" width="90" height="40" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+        <text x="670" y="84" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#8B90A0">外部Client</text>
+        <polyline points="715,80 758,80" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#c2)"/>
+        <rect x="760" y="50" width="135" height="60" rx="5" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="828" y="76" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="12" fill="#4F8FFF" font-weight="700">Ingress</text>
+        <text x="828" y="95" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Controller (Nginx)</text>
+        <polyline points="895,70 930,55" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#c2)"/>
+        <polyline points="895,90 930,105" fill="none" stroke="#4F8FFF" stroke-width="1.2" marker-end="url(#c2)"/>
+        <rect x="932" y="35" width="120" height="36" rx="4" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+        <text x="992" y="57" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Service A (API)</text>
+        <rect x="932" y="88" width="120" height="36" rx="4" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1"/>
+        <text x="992" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#34D399">Service B (Web)</text>
+
+        <rect x="625" y="140" width="440" height="70" rx="5" fill="rgba(52,211,153,0.08)" stroke="#34D399" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="845" y="165" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399">ホスト/パスで複数Serviceへルーティング</text>
+        <text x="845" y="185" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">SSL終端 / 1つのIPで複数ドメイン対応 / WAF連携可</text>
+
+        <!-- arrow between steps -->
+        <polyline points="490,120 515,120 515,120 560,120" fill="none" stroke="#5A5F73" stroke-width="1.5" marker-end="url(#c1)"/>
+        <text x="525" y="110" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#5A5F73">進化</text>
+
+        <!-- timeline -->
+        <text x="250" y="270" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">学習段階 / ローカル検証</text>
+        <text x="850" y="270" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#4F8FFF">本番 / 複数マイクロサービス</text>
+      </svg>
+    </div>
+    <span class="page-num">5 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 6: type-message -->
+<div class="slide" id="slide-6">
+  <div class="slide-inner type-message">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      IngressがL7でマイクロサービスを振り分ける
+    </h2>
+    <div class="slide-body">
+      <div class="slide-text">
+        <ul class="bullet-list">
+          <li>Ingress Controllerの実体は<strong>NginxのPod</strong>。NodePortで外部に口を開け、内部ではClusterIPへ転送する</li>
+          <li><strong>Ingressリソース</strong>にホスト・パスのルールを定義。<span class="hl-success">`/api → api-service`</span>のようにL7で振り分ける</li>
+          <li><span class="hl-danger">SSL終端</span>もIngress Controllerが担う。各Podに証明書を配る必要がない</li>
+        </ul>
+        <p class="note">ローカル開発では/etc/hostsでDNSを手動設定。本番ではRoute 53などのDNSと組み合わせる</p>
+      </div>
+      <div class="slide-diagram">
+        <svg viewBox="0 0 430 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="d1" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#4F8FFF"/></marker>
+            <marker id="d2" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#34D399"/></marker>
+            <marker id="d3" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#FBBF24"/></marker>
+          </defs>
+          <!-- DNS解決 -->
+          <rect x="10" y="10" width="180" height="44" rx="5" fill="#1A1D27" stroke="#2A2E3D" stroke-width="1"/>
+          <text x="100" y="29" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#5A5F73">slack-metrics.local</text>
+          <text x="100" y="47" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">/etc/hosts → MinikubeIP</text>
+          <!-- arrow down -->
+          <polyline points="100,54 100,93" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#d1)"/>
+          <!-- Ingress Controller -->
+          <rect x="20" y="95" width="160" height="64" rx="6" fill="rgba(79,143,255,0.12)" stroke="#4F8FFF" stroke-width="1.5"/>
+          <text x="100" y="123" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="13" fill="#4F8FFF" font-weight="700">Ingress Controller</text>
+          <text x="100" y="143" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">Nginx Pod（NodePort:80）</text>
+          <!-- ルールボックス -->
+          <rect x="200" y="75" width="220" height="100" rx="6" fill="rgba(79,143,255,0.06)" stroke="#4F8FFF" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="310" y="97" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#4F8FFF" font-weight="600">Ingressルール</text>
+          <text x="310" y="117" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">*.local / /api → api-svc</text>
+          <text x="310" y="135" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">*.local /   → web-svc</text>
+          <text x="310" y="155" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="10" fill="#8B90A0">nginx.local →  nginx-svc</text>
+          <!-- arrows to services -->
+          <polyline points="180,118 240,190" fill="none" stroke="#34D399" stroke-width="1.5" marker-end="url(#d2)"/>
+          <polyline points="180,148 240,248" fill="none" stroke="#FBBF24" stroke-width="1.5" marker-end="url(#d3)"/>
+          <!-- Service A -->
+          <rect x="242" y="175" width="165" height="44" rx="5" fill="rgba(52,211,153,0.12)" stroke="#34D399" stroke-width="1.2"/>
+          <text x="325" y="194" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#34D399" font-weight="600">api-service</text>
+          <text x="325" y="211" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">ClusterIP → api Pods</text>
+          <!-- Service B -->
+          <rect x="242" y="232" width="165" height="44" rx="5" fill="rgba(251,191,36,0.12)" stroke="#FBBF24" stroke-width="1.2"/>
+          <text x="325" y="251" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="11" fill="#FBBF24" font-weight="600">web-service</text>
+          <text x="325" y="268" text-anchor="middle" font-family="Inter, Noto Sans JP, sans-serif" font-size="9" fill="#8B90A0">ClusterIP → web Pods</text>
+        </svg>
+      </div>
+    </div>
+    <span class="page-num">6 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 7: type-compare -->
+<div class="slide" id="slide-7">
+  <div class="slide-inner type-compare">
+    <h2 class="slide-heading">
+      <span class="heading-accent-bar"></span>
+      Service Type — 使い分け基準
+    </h2>
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th style="width:18%">タイプ</th>
+          <th style="width:22%">公開範囲</th>
+          <th style="width:30%">特徴</th>
+          <th style="width:30%">使用場面</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>ClusterIP</strong></td>
+          <td>クラスタ内のみ</td>
+          <td>仮想IP固定 / ラウンドロビン負荷分散</td>
+          <td class="highlight-cell">マイクロサービス間通信 / DBアクセス</td>
+        </tr>
+        <tr>
+          <td><strong>Headless</strong></td>
+          <td>クラスタ内のみ</td>
+          <td>仮想IPなし / PodのIPをDNSで返す</td>
+          <td class="highlight-cell">StatefulSetのDB / Pod個別アクセス</td>
+        </tr>
+        <tr>
+          <td><strong>NodePort</strong></td>
+          <td>ノードIP経由で外部</td>
+          <td>ポート30000〜32767 / L4(TCP)</td>
+          <td>ローカル検証 / 学習用</td>
+        </tr>
+        <tr>
+          <td><strong>LoadBalancer</strong></td>
+          <td>クラウドLB経由で外部</td>
+          <td>クラウドLBを自動作成 / コスト高</td>
+          <td>小規模・単一Service公開</td>
+        </tr>
+        <tr>
+          <td><strong>Ingress</strong></td>
+          <td>L7で外部（推奨）</td>
+          <td>ホスト/パスルーティング / SSL終端</td>
+          <td class="highlight-cell">本番 / 複数マイクロサービス</td>
+        </tr>
+      </tbody>
+    </table>
+    <span class="page-num">7 / 8</span>
+  </div>
+</div>
+
+<!-- Slide 8: type-summary -->
+<div class="slide" id="slide-8">
+  <div class="slide-inner type-summary">
+    <h2 class="slide-heading">まとめ</h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-num">01</div>
+        <div class="card-title">ClusterIPがすべての基本</div>
+        <div class="card-desc">どのServiceタイプも内部ではClusterIPを使う。Pod群への固定窓口を提供し、ラウンドロビンで負荷分散する</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">02</div>
+        <div class="card-title">外部公開は Ingress + ClusterIP</div>
+        <div class="card-desc">NodePortは学習用・暫定。本番はIngress Controller（Nginx Pod）にL7ルーティングを集約する</div>
+      </div>
+      <div class="summary-card">
+        <div class="card-num">03</div>
+        <div class="card-title">IngressはL7の中央集権ルーター</div>
+        <div class="card-desc">ホスト/パスで複数Serviceへ振り分け、SSL終端も担う。1つのControllerで複数マイクロサービスを管理できる</div>
+      </div>
+    </div>
+    <span class="page-num">8 / 8</span>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+  function goTo(i) { if (i < 0 || i >= slides.length) return; current = i; slides[current].scrollIntoView({ behavior: 'smooth' }); updateUI(); }
+  function updateUI() { const pct = ((current + 1) / slides.length) * 100; document.getElementById('progress').style.width = pct + '%'; slides.forEach((s, idx) => { s.classList.toggle('in-view', idx === current); }); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); } });
+  document.addEventListener('click', (e) => { if (e.clientX / window.innerWidth < 0.3) goTo(current - 1); else goTo(current + 1); });
+  let st; window.addEventListener('scroll', () => { clearTimeout(st); st = setTimeout(() => { current = Math.round(window.scrollY / window.innerHeight); updateUI(); }, 100); });
+  if (slides.length > 0) slides[0].classList.add('in-view');
+  updateUI();
+</script>
+</body>
+</html>
