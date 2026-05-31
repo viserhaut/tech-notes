@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kubectl は"型"で覚える</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --color-bg: #0B0E14;
+  --color-surface: #141923;
+  --color-surface-2: #1C2230;
+  --color-border: #2A3142;
+  --color-text: #E6EAF2;
+  --color-text-dim: #9AA4B8;
+  --color-accent: #4F8FFF;
+  --color-accent-dim: rgba(79, 143, 255, 0.15);
+  --color-green: #22C55E;
+  --color-red: #EF4444;
+  --color-amber: #F5A623;
+  --slide-w: 1280px;
+  --slide-h: 720px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.deck { width: 100%; }
+
+.slide {
+  position: relative;
+  width: var(--slide-w);
+  height: var(--slide-h);
+  margin: 0 auto;
+  background: var(--color-bg);
+  overflow: hidden;
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px 72px;
+}
+
+.slide-nav {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  display: flex; gap: 8px; z-index: 100;
+}
+.slide-nav button {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  width: 40px; height: 40px;
+  border-radius: 8px; cursor: pointer; font-size: 18px;
+}
+.slide-nav button:hover { background: var(--color-accent); border-color: var(--color-accent); }
+.slide-nav button:disabled { opacity: 0.3; cursor: default; }
+
+.page-num {
+  position: absolute;
+  bottom: 28px; right: 32px;
+  font-size: 13px; color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Title ===== */
+.type-title { justify-content: center; }
+.type-title .eyebrow {
+  font-size: 15px; font-weight: 600; color: var(--color-accent);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 20px;
+}
+.type-title h1 {
+  font-size: 52px; font-weight: 800; line-height: 1.18;
+  letter-spacing: -0.01em; margin-bottom: 28px;
+}
+.type-title .accent { color: var(--color-accent); }
+.type-title .subtitle {
+  font-size: 21px; color: var(--color-text-dim); line-height: 1.6; font-weight: 400;
+}
+.type-title .badge-row { margin-top: 40px; display: flex; gap: 12px; }
+.type-title .badge {
+  border: 1px solid var(--color-border); border-radius: 999px;
+  padding: 8px 18px; font-size: 14px; color: var(--color-text-dim);
+}
+
+/* ===== Heading ===== */
+.heading-accent-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+.heading-accent-bar::before {
+  content: ''; width: 5px; height: 28px;
+  background: var(--color-accent); border-radius: 2px;
+}
+.heading-accent-bar h2 { font-size: 30px; font-weight: 700; }
+
+/* ===== Message ===== */
+.type-message .content-row { display: flex; gap: 48px; align-items: center; }
+.type-message .text-col { flex: 0 0 42%; }
+.type-message .visual-col { flex: 1; }
+.type-message.type-message-rev .content-row { flex-direction: row-reverse; }
+
+.lead { font-size: 19px; line-height: 1.7; color: var(--color-text-dim); margin-bottom: 24px; }
+.bullet-list { list-style: none; }
+.bullet-list li {
+  position: relative; padding-left: 26px; margin-bottom: 16px;
+  font-size: 17px; line-height: 1.6;
+}
+.bullet-list li::before {
+  content: ''; position: absolute; left: 0; top: 9px;
+  width: 8px; height: 8px; background: var(--color-accent); border-radius: 2px;
+}
+.bullet-list li strong { color: var(--color-text); font-weight: 600; }
+.hl { color: var(--color-accent); font-weight: 600; }
+.hl-red { color: var(--color-red); font-weight: 600; }
+.hl-green { color: var(--color-green); font-weight: 600; }
+
+/* ===== Compare ===== */
+.compare-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+.compare-table th, .compare-table td {
+  padding: 16px 20px; text-align: left; border: 1px solid var(--color-border);
+}
+.compare-table th { background: var(--color-surface-2); font-weight: 600; }
+.compare-table td { color: var(--color-text-dim); }
+.compare-table code { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--color-text); }
+.compare-table .highlight { color: var(--color-accent); font-weight: 600; }
+.compare-table .highlight code { color: var(--color-accent); }
+
+/* ===== Code ===== */
+.type-code .content-row { display: flex; gap: 32px; align-items: stretch; }
+.type-code .code-col { flex: 1; display: flex; }
+.code-block {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: 10px; padding: 24px 28px;
+  font-family: 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.85;
+  overflow-x: auto; white-space: pre; width: 100%;
+}
+.code-block .cmt { color: #5F6B82; }
+.code-block .cmd { color: var(--color-accent); }
+.code-block .vrb { color: #C792EA; }
+.code-block .opt { color: #89DDFF; }
+.code-block .str { color: #A5D6A7; }
+.anno-col { flex: 0 0 33%; display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.annotation-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent); border-radius: 0 10px 10px 0; padding: 18px 20px;
+}
+.annotation-card h4 { font-size: 15px; margin-bottom: 8px; color: var(--color-accent); }
+.annotation-card p { font-size: 14px; line-height: 1.6; color: var(--color-text-dim); }
+
+/* ===== Diagram ===== */
+.type-diagram .diagram-area {
+  flex: 1; display: flex; align-items: center; justify-content: center; width: 100%;
+}
+.type-diagram svg { max-width: 100%; max-height: 520px; }
+
+/* ===== Summary ===== */
+.type-summary .card-row { display: flex; gap: 24px; margin-top: 8px; }
+.card {
+  flex: 1; background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: 12px; padding: 32px 28px;
+}
+.card .card-num { font-size: 14px; font-weight: 700; color: var(--color-accent); margin-bottom: 14px; }
+.card h3 { font-size: 19px; margin-bottom: 12px; line-height: 1.4; }
+.card p { font-size: 15px; line-height: 1.65; color: var(--color-text-dim); }
+.card code { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--color-accent); }
+
+@media print {
+  .slide-nav { display: none; }
+  .slide { margin: 0; }
+  @page { size: 1280px 720px; margin: 0; }
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ===== 01 type-title ===== -->
+<section class="slide type-title">
+  <div class="eyebrow">KUBERNETES FOUNDATION</div>
+  <h1>kubectl は<span class="accent">"型"</span>で覚える</h1>
+  <div class="subtitle">無数のコマンドを暗記するのではなく<br>「動詞＋リソース＋詳細」という1つの構文に集約する</div>
+  <div class="badge-row">
+    <div class="badge">kubectl</div>
+    <div class="badge">コマンド構文</div>
+    <div class="badge">AWS CLI 対比</div>
+  </div>
+  <div class="page-num">01</div>
+</section>
+
+<!-- ===== 02 type-summary (Key Takeaway) ===== -->
+<section class="slide type-summary">
+  <div class="heading-accent-bar"><h2>Key Takeaway</h2></div>
+  <p class="lead" style="font-size:22px;color:var(--color-text);margin-bottom:32px;">
+    kubectl のコマンドは<strong class="hl">動詞＋リソース＋詳細</strong>という1つの型に集約される。
+    型さえ掴めば、暗記せずに大半の操作を<strong class="hl">都度調べず</strong>叩ける
+  </p>
+  <div class="card-row">
+    <div class="card"><div class="card-num">01</div><h3>構文は常に同じ型</h3><p><code>kubectl &lt;動詞&gt; &lt;リソース&gt; [名前/オプション]</code> の並びはどのコマンドでも崩れない</p></div>
+    <div class="card"><div class="card-num">02</div><h3>動詞は7つで足りる</h3><p>get / describe / apply / create / delete / logs / exec を役割で覚えれば日常操作は回る</p></div>
+    <div class="card"><div class="card-num">03</div><h3>AWS CLI と同じ発想</h3><p><code>aws &lt;サービス&gt; &lt;アクション&gt;</code> のサブコマンド体系を知っていれば踏み台にできる</p></div>
+  </div>
+  <div class="page-num">02</div>
+</section>
+
+<!-- ===== 03 type-message (課題) ===== -->
+<section class="slide type-message">
+  <div class="heading-accent-bar"><h2>コマンドの丸暗記は早晩行き詰まる</h2></div>
+  <div class="content-row">
+    <div class="text-col">
+      <p class="lead">kubectl のコマンドを1つずつ覚えようとすると、操作のたびに検索を繰り返す消耗戦になる。</p>
+      <ul class="bullet-list">
+        <li>リソースも動詞も多く、<strong>個別暗記はキリがない</strong></li>
+        <li>新しい操作のたびに<span class="hl-red">毎回ドキュメントを検索</span></li>
+        <li>型が見えないと、いつまでも手が止まる</li>
+      </ul>
+    </div>
+    <div class="visual-col">
+      <svg viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+        <!-- 悪循環: 4ボックスを時計回りに結ぶ -->
+        <rect x="40" y="40" width="190" height="80" rx="10" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="135" y="75" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">やりたい操作</text>
+        <text x="135" y="98" fill="#9AA4B8" font-size="12" text-anchor="middle">が出てくる</text>
+
+        <rect x="290" y="40" width="190" height="80" rx="10" fill="#141923" stroke="#EF4444" stroke-width="1.5"/>
+        <text x="385" y="75" fill="#EF4444" font-size="15" font-weight="600" text-anchor="middle">毎回ググる</text>
+        <text x="385" y="98" fill="#9AA4B8" font-size="12" text-anchor="middle">ドキュメント検索</text>
+
+        <rect x="290" y="240" width="190" height="80" rx="10" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="385" y="275" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">コマンド発見</text>
+        <text x="385" y="298" fill="#9AA4B8" font-size="12" text-anchor="middle">でも記憶に残らない</text>
+
+        <rect x="40" y="240" width="190" height="80" rx="10" fill="#141923" stroke="#EF4444" stroke-width="1.5"/>
+        <text x="135" y="275" fill="#EF4444" font-size="15" font-weight="600" text-anchor="middle">また振り出し</text>
+        <text x="135" y="298" fill="#9AA4B8" font-size="12" text-anchor="middle">次の操作で再検索</text>
+
+        <!-- 時計回り矢印（orthogonal） -->
+        <polyline points="230,80 287,80" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m3)"/>
+        <polyline points="385,120 385,237" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m3)"/>
+        <polyline points="290,280 233,280" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m3)"/>
+        <polyline points="135,240 135,123" fill="none" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#m3r)"/>
+
+        <text x="260" y="195" fill="#EF4444" font-size="13" font-weight="600" text-anchor="middle">型が無いと無限ループ</text>
+        <defs>
+          <marker id="m3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA4B8"/></marker>
+          <marker id="m3r" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#EF4444"/></marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+  <div class="page-num">03</div>
+</section>
+
+<!-- ===== 04 type-message-rev (解決: 構文分解) ===== -->
+<section class="slide type-message type-message-rev">
+  <div class="heading-accent-bar"><h2>kubectl は1つの構文パターンに集約される</h2></div>
+  <div class="content-row">
+    <div class="text-col">
+      <p class="lead">どのコマンドも「動詞→対象→詳細」の3列が同じ並びで続く。列の意味を掴めば応用が利く。</p>
+      <ul class="bullet-list">
+        <li><strong>動詞</strong>＝何をするか（get / apply …）</li>
+        <li><strong>リソース</strong>＝対象の種類（pods / svc …）</li>
+        <li><strong>名前・オプション</strong>＝どれを・どう</li>
+      </ul>
+    </div>
+    <div class="visual-col">
+      <svg viewBox="0 0 540 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+        <!-- 列ヘッダ -->
+        <rect x="30" y="24" width="150" height="42" rx="8" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="105" y="50" fill="#4F8FFF" font-size="15" font-weight="700" text-anchor="middle">動詞</text>
+        <rect x="195" y="24" width="150" height="42" rx="8" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="270" y="50" fill="#4F8FFF" font-size="15" font-weight="700" text-anchor="middle">リソース</text>
+        <rect x="360" y="24" width="150" height="42" rx="8" fill="rgba(79,143,255,0.15)" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="435" y="50" fill="#4F8FFF" font-size="14" font-weight="700" text-anchor="middle">名前・オプション</text>
+
+        <!-- 縦ガイド -->
+        <line x1="187.5" y1="74" x2="187.5" y2="320" stroke="#2A3142" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="352.5" y1="74" x2="352.5" y2="320" stroke="#2A3142" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- 例1 get pods -->
+        <rect x="30" y="84" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="105" y="113" fill="#C792EA" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">get</text>
+        <rect x="195" y="84" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="270" y="113" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">pods</text>
+        <text x="435" y="113" fill="#5F6B82" font-size="13" text-anchor="middle">（一覧・省略可）</text>
+
+        <!-- 例2 describe pod name -->
+        <rect x="30" y="142" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="105" y="171" fill="#C792EA" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">describe</text>
+        <rect x="195" y="142" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="270" y="171" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">pod</text>
+        <rect x="360" y="142" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="435" y="171" fill="#A5D6A7" font-size="14" font-family="'JetBrains Mono',monospace" text-anchor="middle">nginx-pod</text>
+
+        <!-- 例3 apply -f file -->
+        <rect x="30" y="200" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="105" y="229" fill="#C792EA" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">apply</text>
+        <rect x="195" y="200" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="270" y="229" fill="#89DDFF" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">-f</text>
+        <rect x="360" y="200" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="435" y="229" fill="#A5D6A7" font-size="14" font-family="'JetBrains Mono',monospace" text-anchor="middle">deploy.yaml</text>
+
+        <!-- 例4 delete pod name -->
+        <rect x="30" y="258" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="105" y="287" fill="#C792EA" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">delete</text>
+        <rect x="195" y="258" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="270" y="287" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">pod</text>
+        <rect x="360" y="258" width="150" height="46" rx="6" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+        <text x="435" y="287" fill="#A5D6A7" font-size="14" font-family="'JetBrains Mono',monospace" text-anchor="middle">nginx-pod</text>
+
+        <text x="270" y="335" fill="#9AA4B8" font-size="13" text-anchor="middle">3列が常に同じ並び — これが kubectl の"型"</text>
+      </svg>
+    </div>
+  </div>
+  <div class="page-num">04</div>
+</section>
+
+<!-- ===== 05 type-diagram (動詞グルーピング) ===== -->
+<section class="slide type-diagram">
+  <div class="heading-accent-bar"><h2>動詞は「役割」で4グループに整理できる</h2></div>
+  <div class="diagram-area">
+    <svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+      <!-- Group 1 観察 -->
+      <rect x="20" y="50" width="200" height="280" rx="12" fill="#0F1420" stroke="#4F8FFF" stroke-width="1.5"/>
+      <text x="120" y="82" fill="#4F8FFF" font-size="16" font-weight="700" text-anchor="middle">観察する</text>
+      <text x="120" y="104" fill="#9AA4B8" font-size="12" text-anchor="middle">状態を読む</text>
+      <rect x="44" y="122" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="120" y="151" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">get</text>
+      <rect x="44" y="182" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="120" y="211" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">describe</text>
+      <rect x="44" y="242" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="120" y="271" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">logs</text>
+
+      <!-- Group 2 作成・適用 -->
+      <rect x="240" y="50" width="200" height="280" rx="12" fill="#0F1420" stroke="#22C55E" stroke-width="1.5"/>
+      <text x="340" y="82" fill="#22C55E" font-size="16" font-weight="700" text-anchor="middle">作成・適用</text>
+      <text x="340" y="104" fill="#9AA4B8" font-size="12" text-anchor="middle">リソースを生む</text>
+      <rect x="264" y="122" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="340" y="151" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">apply</text>
+      <rect x="264" y="182" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="340" y="211" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">create</text>
+      <text x="340" y="271" fill="#5F6B82" font-size="12" text-anchor="middle">基本は apply</text>
+      <text x="340" y="289" fill="#5F6B82" font-size="12" text-anchor="middle">（宣言的に管理）</text>
+
+      <!-- Group 3 削除 -->
+      <rect x="460" y="50" width="200" height="280" rx="12" fill="#0F1420" stroke="#EF4444" stroke-width="1.5"/>
+      <text x="560" y="82" fill="#EF4444" font-size="16" font-weight="700" text-anchor="middle">削除する</text>
+      <text x="560" y="104" fill="#9AA4B8" font-size="12" text-anchor="middle">リソースを消す</text>
+      <rect x="484" y="122" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="560" y="151" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">delete</text>
+      <text x="560" y="211" fill="#5F6B82" font-size="12" text-anchor="middle">名前指定でも</text>
+      <text x="560" y="229" fill="#5F6B82" font-size="12" text-anchor="middle">-f ファイル指定でも</text>
+      <text x="560" y="271" fill="#5F6B82" font-size="12" text-anchor="middle">まとめて消せる</text>
+
+      <!-- Group 4 操作 -->
+      <rect x="680" y="50" width="200" height="280" rx="12" fill="#0F1420" stroke="#F5A623" stroke-width="1.5"/>
+      <text x="780" y="82" fill="#F5A623" font-size="16" font-weight="700" text-anchor="middle">中で操作</text>
+      <text x="780" y="104" fill="#9AA4B8" font-size="12" text-anchor="middle">Pod に入る</text>
+      <rect x="704" y="122" width="152" height="48" rx="7" fill="#141923" stroke="#2A3142" stroke-width="1.2"/>
+      <text x="780" y="151" fill="#E6EAF2" font-size="15" font-family="'JetBrains Mono',monospace" text-anchor="middle">exec</text>
+      <text x="780" y="211" fill="#5F6B82" font-size="12" text-anchor="middle">-it で対話シェル</text>
+      <text x="780" y="271" fill="#5F6B82" font-size="12" text-anchor="middle">デバッグの定番</text>
+
+      <text x="450" y="368" fill="#9AA4B8" font-size="13" text-anchor="middle">役割が分かれば、どの動詞を使うか迷わない</text>
+    </svg>
+  </div>
+  <div class="page-num">05</div>
+</section>
+
+<!-- ===== 06 type-code ===== -->
+<section class="slide type-code">
+  <div class="heading-accent-bar"><h2>実コマンド例で型を体に染み込ませる</h2></div>
+  <div class="content-row">
+    <div class="code-col">
+      <div class="code-block"><span class="cmt"># 一覧で確認する（リソースは複数形）</span>
+<span class="cmd">kubectl</span> <span class="vrb">get</span> pods
+<span class="cmd">kubectl</span> <span class="vrb">get</span> svc          <span class="cmt"># 略称も使える</span>
+
+<span class="cmt"># 詳細・イベントを深掘り</span>
+<span class="cmd">kubectl</span> <span class="vrb">describe</span> pod <span class="str">nginx-pod</span>
+
+<span class="cmt"># マニフェストを適用（宣言的）</span>
+<span class="cmd">kubectl</span> <span class="vrb">apply</span> <span class="opt">-f</span> <span class="str">deployment.yaml</span>
+
+<span class="cmt"># Pod の中に入ってデバッグ</span>
+<span class="cmd">kubectl</span> <span class="vrb">exec</span> <span class="opt">-it</span> <span class="str">nginx-pod</span> -- /bin/bash</div>
+    </div>
+    <div class="anno-col">
+      <div class="annotation-card"><h4>リソースは複数形</h4><p><code>get pods</code> / <code>services</code> のように複数形。<code>po</code> / <code>svc</code> / <code>deploy</code> の略称も使える</p></div>
+      <div class="annotation-card"><h4>apply は宣言的</h4><p><code>-f</code> でマニフェストを指定。<code>create</code> より <code>apply</code> が基本。GitOps 運用の土台</p></div>
+      <div class="annotation-card"><h4>exec でデバッグ</h4><p><code>-it</code> で対話シェル。<code>-c</code> でコンテナ指定（1つなら省略可）</p></div>
+    </div>
+  </div>
+  <div class="page-num">06</div>
+</section>
+
+<!-- ===== 07 type-compare ===== -->
+<section class="slide type-compare">
+  <div class="heading-accent-bar"><h2>kubectl の型は AWS CLI / docker と地続き</h2></div>
+  <table class="compare-table">
+    <thead><tr><th style="width:22%">やりたいこと</th><th style="width:39%">AWS CLI / docker</th><th style="width:39%">kubectl</th></tr></thead>
+    <tbody>
+      <tr><td>構文の型</td><td><code>aws &lt;サービス&gt; &lt;アクション&gt;</code></td><td class="highlight"><code>kubectl &lt;動詞&gt; &lt;リソース&gt;</code></td></tr>
+      <tr><td>一覧を見る</td><td><code>aws ecs list-services</code></td><td class="highlight"><code>kubectl get services</code></td></tr>
+      <tr><td>詳細を見る</td><td><code>aws ecs describe-services</code></td><td class="highlight"><code>kubectl describe service</code></td></tr>
+      <tr><td>中に入る</td><td><code>docker exec -it &lt;id&gt;</code></td><td class="highlight"><code>kubectl exec -it &lt;pod&gt;</code></td></tr>
+    </tbody>
+  </table>
+  <p class="lead" style="margin-top:28px;font-size:15px;">AWS CLI の「サービス＋アクション」を体で覚えているなら、kubectl の「動詞＋リソース」も同じ要領で手が動く。</p>
+  <div class="page-num">07</div>
+</section>
+
+<!-- ===== 08 type-summary ===== -->
+<section class="slide type-summary">
+  <div class="heading-accent-bar"><h2>まとめ</h2></div>
+  <div class="card-row">
+    <div class="card"><div class="card-num">01</div><h3>型で覚える</h3><p><code>動詞＋リソース＋詳細</code>の並びは不変。暗記より構文理解が効く</p></div>
+    <div class="card"><div class="card-num">02</div><h3>動詞は役割で7つ</h3><p>観察(get/describe/logs)・作成(apply/create)・削除(delete)・操作(exec)で把握する</p></div>
+    <div class="card"><div class="card-num">03</div><h3>複数形・-f・略称</h3><p>get は複数形、apply は <code>-f</code>。<code>po/svc/deploy</code> の略称と <code>alias k=kubectl</code> で高速化</p></div>
+  </div>
+  <div class="page-num">08</div>
+</section>
+
+</div>
+
+<div class="slide-nav">
+  <button id="prevBtn" onclick="go(-1)">‹</button>
+  <button id="nextBtn" onclick="go(1)">›</button>
+</div>
+
+<script>
+let current = 0;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+function render() {
+  slides.forEach((s, i) => s.style.display = i === current ? 'flex' : 'none');
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === total - 1;
+}
+function go(d) { current = Math.max(0, Math.min(total - 1, current + d)); render(); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft') go(-1);
+});
+render();
+</script>
+</body>
+</html>
