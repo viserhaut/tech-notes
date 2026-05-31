@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>なぜKubernetesが必要なのか</title>
+<style>
+/* ===== Font ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --color-bg: #0B0E14;
+  --color-surface: #141923;
+  --color-surface-2: #1C2230;
+  --color-border: #2A3142;
+  --color-text: #E6EAF2;
+  --color-text-dim: #9AA4B8;
+  --color-accent: #4F8FFF;
+  --color-accent-dim: rgba(79, 143, 255, 0.15);
+  --slide-w: 1280px;
+  --slide-h: 720px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Inter', 'Noto Sans JP', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Deck container ===== */
+.deck { width: 100%; }
+
+/* ===== Slide base ===== */
+.slide {
+  position: relative;
+  width: var(--slide-w);
+  height: var(--slide-h);
+  margin: 0 auto;
+  background: var(--color-bg);
+  overflow: hidden;
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px 72px;
+}
+
+/* ===== Navigation (screen only) ===== */
+.slide-nav {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+.slide-nav button {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+}
+.slide-nav button:hover { background: var(--color-accent); border-color: var(--color-accent); }
+.slide-nav button:disabled { opacity: 0.3; cursor: default; }
+
+/* ===== Page number ===== */
+.page-num {
+  position: absolute;
+  bottom: 28px; right: 32px;
+  font-size: 13px;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Title slide (type-title) ===== */
+.type-title { justify-content: center; }
+.type-title .eyebrow {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.type-title h1 {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+  margin-bottom: 28px;
+}
+.type-title .subtitle {
+  font-size: 21px;
+  color: var(--color-text-dim);
+  line-height: 1.6;
+  font-weight: 400;
+}
+.type-title .badge-row {
+  margin-top: 40px;
+  display: flex;
+  gap: 12px;
+}
+.type-title .badge {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 14px;
+  color: var(--color-text-dim);
+}
+
+/* ===== Section divider (type-section) ===== */
+.type-section { justify-content: center; }
+.type-section .section-num {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-bottom: 16px;
+}
+.type-section h2 {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.type-section .accent-bar {
+  width: 64px; height: 4px;
+  background: var(--color-accent);
+  margin-top: 24px;
+}
+
+/* ===== Content heading ===== */
+.heading-accent-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+.heading-accent-bar::before {
+  content: '';
+  width: 5px; height: 28px;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+.heading-accent-bar h2 {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+/* ===== type-message (text + visual) ===== */
+.type-message .content-row {
+  display: flex;
+  gap: 48px;
+  align-items: center;
+}
+.type-message .text-col { flex: 0 0 42%; }
+.type-message .visual-col { flex: 1; }
+.type-message.type-message-rev .content-row { flex-direction: row-reverse; }
+
+.lead {
+  font-size: 19px;
+  line-height: 1.7;
+  color: var(--color-text-dim);
+  margin-bottom: 24px;
+}
+.bullet-list { list-style: none; }
+.bullet-list li {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 16px;
+  font-size: 17px;
+  line-height: 1.6;
+}
+.bullet-list li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 9px;
+  width: 8px; height: 8px;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+
+/* ===== type-compare (table) ===== */
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.compare-table th, .compare-table td {
+  padding: 16px 20px;
+  text-align: left;
+  border: 1px solid var(--color-border);
+}
+.compare-table th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+}
+.compare-table td { color: var(--color-text-dim); }
+.compare-table .highlight { color: var(--color-accent); font-weight: 600; }
+
+/* ===== type-code ===== */
+.type-code .content-row {
+  display: flex;
+  gap: 32px;
+}
+.type-code .code-col { flex: 1; }
+.code-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+.code-block .comment { color: var(--color-text-dim); }
+.code-block .keyword { color: var(--color-accent); }
+.annotation-card {
+  flex: 0 0 32%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 24px;
+}
+.annotation-card h4 {
+  font-size: 16px;
+  margin-bottom: 14px;
+  color: var(--color-accent);
+}
+.annotation-card p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-dim);
+}
+
+/* ===== type-diagram ===== */
+.type-diagram .diagram-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.type-diagram svg { max-width: 100%; max-height: 520px; }
+
+/* ===== type-summary (3 cards) ===== */
+.type-summary .card-row {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+}
+.card {
+  flex: 1;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 32px 28px;
+}
+.card .card-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-accent);
+  margin-bottom: 14px;
+}
+.card h3 {
+  font-size: 19px;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+.card p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--color-text-dim);
+}
+
+/* ===== Print ===== */
+@media print {
+  .slide-nav { display: none; }
+  .slide { margin: 0; }
+  @page { size: 1280px 720px; margin: 0; }
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- ===== 01 type-title ===== -->
+<section class="slide type-title">
+  <div class="eyebrow">KUBERNETES FOUNDATION</div>
+  <h1>なぜ Kubernetes が<br>必要なのか</h1>
+  <div class="subtitle">コンテナ単体運用の限界を<br>宣言的モデルと調整ループで自動的に埋める</div>
+  <div class="badge-row">
+    <div class="badge">コンテナオーケストレーション</div>
+    <div class="badge">宣言的モデル</div>
+    <div class="badge">調整ループ</div>
+  </div>
+  <div class="page-num">01</div>
+</section>
+
+<!-- ===== 02 type-summary (Key Takeaway) ===== -->
+<section class="slide type-summary">
+  <div class="heading-accent-bar"><h2>Key Takeaway</h2></div>
+  <p class="lead" style="font-size:22px;color:var(--color-text);margin-bottom:32px;">
+    コンテナ単体では本番運用が回らない。Kubernetes は<strong style="color:var(--color-accent)">望ましい状態の宣言</strong>と<strong style="color:var(--color-accent)">調整ループ</strong>で、復旧・スケール・更新を自動化する
+  </p>
+  <div class="card-row">
+    <div class="card"><div class="card-num">01</div><h3>オーケストレーションが要る</h3><p>手動のコンテナ運用は復旧もスケールも追いつかない。自動化が前提になる</p></div>
+    <div class="card"><div class="card-num">02</div><h3>宣言的に管理する</h3><p>あるべき状態を YAML で宣言し、調整ループが現状との差分を埋め続ける</p></div>
+    <div class="card"><div class="card-num">03</div><h3>運用が自動で回る</h3><p>自己修復・水平スケール・ローリング更新で人手の介入を減らせる</p></div>
+  </div>
+  <div class="page-num">02</div>
+</section>
+
+<!-- ===== 03 type-message ===== -->
+<section class="slide type-message">
+  <div class="heading-accent-bar"><h2>コンテナ単体では本番が回らない</h2></div>
+  <div class="content-row">
+    <div class="text-col">
+      <p class="lead">docker run は開発では便利でも、落ちたら誰かが気づいて建て直すまでサービスは止まる。</p>
+      <ul class="bullet-list">
+        <li>クラッシュしても自動復旧しない</li>
+        <li>負荷増は手作業でスケール</li>
+        <li>複数サーバーへの配置が煩雑</li>
+      </ul>
+    </div>
+    <div class="visual-col">
+      <svg viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+        <rect x="50" y="40" width="190" height="100" rx="10" fill="#141923" stroke="#EF4444" stroke-width="1.5"/>
+        <text x="145" y="80" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">コンテナ</text>
+        <text x="145" y="105" fill="#EF4444" font-size="13" text-anchor="middle">クラッシュ</text>
+        <line x1="70" y1="58" x2="100" y2="88" stroke="#EF4444" stroke-width="2"/>
+        <line x1="100" y1="58" x2="70" y2="88" stroke="#EF4444" stroke-width="2"/>
+        <rect x="50" y="230" width="190" height="90" rx="10" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="145" y="270" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">運用者</text>
+        <text x="145" y="294" fill="#9AA4B8" font-size="13" text-anchor="middle">手動で再起動</text>
+        <rect x="330" y="140" width="160" height="80" rx="10" fill="#1C2230" stroke="#EF4444" stroke-width="1.5"/>
+        <text x="410" y="175" fill="#E6EAF2" font-size="14" font-weight="600" text-anchor="middle">サービス停止</text>
+        <text x="410" y="198" fill="#9AA4B8" font-size="12" text-anchor="middle">復旧まで継続</text>
+        <polyline points="145,140 145,230" fill="none" stroke="#9AA4B8" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#m3a)"/>
+        <text x="160" y="190" fill="#9AA4B8" font-size="12" text-anchor="start">気づくまで遅延</text>
+        <polyline points="240,90 285,90 285,180 330,180" fill="none" stroke="#EF4444" stroke-width="1.5" marker-end="url(#m3b)"/>
+        <defs>
+          <marker id="m3a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA4B8"/></marker>
+          <marker id="m3b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#EF4444"/></marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+  <div class="page-num">03</div>
+</section>
+
+<!-- ===== 04 type-message-rev ===== -->
+<section class="slide type-message type-message-rev">
+  <div class="heading-accent-bar"><h2>宣言的モデルが手順を肩代わりする</h2></div>
+  <div class="content-row">
+    <div class="text-col">
+      <p class="lead">命令的は手順を一つずつ指示する。宣言的は最終状態だけを宣言し、到達方法はシステムに任せる。</p>
+      <ul class="bullet-list">
+        <li>命令的＝起動・確認・再起動を逐次指示</li>
+        <li>宣言的＝あるべき状態を YAML で宣言</li>
+        <li>kubectl apply で適用すれば後は自動</li>
+      </ul>
+    </div>
+    <div class="visual-col">
+      <svg viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+        <rect x="40" y="30" width="440" height="130" rx="10" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="60" y="58" fill="#9AA4B8" font-size="14" font-weight="600" text-anchor="start">命令的</text>
+        <rect x="60" y="78" width="100" height="50" rx="8" fill="#1C2230" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="110" y="108" fill="#E6EAF2" font-size="13" text-anchor="middle">起動</text>
+        <rect x="195" y="78" width="100" height="50" rx="8" fill="#1C2230" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="245" y="108" fill="#E6EAF2" font-size="13" text-anchor="middle">確認</text>
+        <rect x="330" y="78" width="100" height="50" rx="8" fill="#1C2230" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="380" y="108" fill="#E6EAF2" font-size="13" text-anchor="middle">再起動</text>
+        <polyline points="160,103 195,103" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m4a)"/>
+        <polyline points="295,103 330,103" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m4a)"/>
+        <rect x="40" y="200" width="440" height="130" rx="10" fill="#141923" stroke="#4F8FFF" stroke-width="2"/>
+        <text x="60" y="228" fill="#4F8FFF" font-size="14" font-weight="600" text-anchor="start">宣言的</text>
+        <rect x="60" y="248" width="180" height="60" rx="8" fill="#1C2230" stroke="#4F8FFF" stroke-width="1.5"/>
+        <text x="150" y="274" fill="#E6EAF2" font-size="13" font-weight="600" text-anchor="middle">desired state</text>
+        <text x="150" y="294" fill="#9AA4B8" font-size="12" text-anchor="middle">replicas: 3</text>
+        <rect x="300" y="248" width="160" height="60" rx="8" fill="#1C2230" stroke="#2A3142" stroke-width="1.5"/>
+        <text x="380" y="274" fill="#E6EAF2" font-size="13" text-anchor="middle">あとは</text>
+        <text x="380" y="294" fill="#9AA4B8" font-size="12" text-anchor="middle">Kubernetes が実行</text>
+        <polyline points="240,278 300,278" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#m4b)"/>
+        <defs>
+          <marker id="m4a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA4B8"/></marker>
+          <marker id="m4b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4F8FFF"/></marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+  <div class="page-num">04</div>
+</section>
+
+<!-- ===== 05 type-diagram (Reconciliation Loop) ===== -->
+<section class="slide type-diagram">
+  <div class="heading-accent-bar"><h2>調整ループが差分を埋め続ける</h2></div>
+  <div class="diagram-area">
+    <svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+      <rect x="40" y="150" width="200" height="110" rx="10" fill="#1C2230" stroke="#4F8FFF" stroke-width="2"/>
+      <text x="140" y="195" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">desired state</text>
+      <text x="140" y="220" fill="#9AA4B8" font-size="13" text-anchor="middle">replicas: 3 を宣言</text>
+      <rect x="320" y="150" width="220" height="110" rx="10" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="430" y="195" fill="#E6EAF2" font-size="15" font-weight="600" text-anchor="middle">コントローラ</text>
+      <text x="430" y="220" fill="#9AA4B8" font-size="13" text-anchor="middle">現状と比較し差分を検知</text>
+      <rect x="620" y="60" width="240" height="290" rx="12" fill="#0F1420" stroke="#22C55E" stroke-width="1.5"/>
+      <text x="740" y="90" fill="#22C55E" font-size="14" font-weight="700" text-anchor="middle">クラスタ実態</text>
+      <rect x="650" y="110" width="180" height="50" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="740" y="140" fill="#E6EAF2" font-size="13" text-anchor="middle">Pod 稼働中</text>
+      <rect x="650" y="175" width="180" height="50" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="740" y="205" fill="#E6EAF2" font-size="13" text-anchor="middle">Pod 稼働中</text>
+      <rect x="650" y="240" width="180" height="50" rx="8" fill="#141923" stroke="#4F8FFF" stroke-width="1.5"/>
+      <text x="740" y="270" fill="#E6EAF2" font-size="13" text-anchor="middle">Pod 再作成</text>
+      <polyline points="240,205 320,205" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#m5a)"/>
+      <polyline points="540,205 620,205" fill="none" stroke="#4F8FFF" stroke-width="1.5" marker-end="url(#m5b)"/>
+      <polyline points="740,350 740,380 430,380 430,260" fill="none" stroke="#9AA4B8" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#m5c)"/>
+      <text x="585" y="372" fill="#9AA4B8" font-size="12" text-anchor="middle">常時ループで観測</text>
+      <defs>
+        <marker id="m5a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4F8FFF"/></marker>
+        <marker id="m5b" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4F8FFF"/></marker>
+        <marker id="m5c" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA4B8"/></marker>
+      </defs>
+    </svg>
+  </div>
+  <div class="page-num">05</div>
+</section>
+
+<!-- ===== 06 type-diagram (Control Plane / Data Plane) ===== -->
+<section class="slide type-diagram">
+  <div class="heading-accent-bar"><h2>クラスタは「頭脳」と「実行」に分かれる</h2></div>
+  <div class="diagram-area">
+    <svg viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Noto Sans JP', sans-serif">
+      <rect x="30" y="40" width="380" height="340" rx="12" fill="#0F1420" stroke="#4F8FFF" stroke-width="1.5"/>
+      <text x="220" y="70" fill="#4F8FFF" font-size="15" font-weight="700" text-anchor="middle">コントロールプレーン（頭脳）</text>
+      <rect x="60" y="95" width="150" height="55" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="135" y="128" fill="#E6EAF2" font-size="13" text-anchor="middle">apiserver</text>
+      <rect x="230" y="95" width="150" height="55" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="305" y="128" fill="#E6EAF2" font-size="13" text-anchor="middle">etcd</text>
+      <rect x="60" y="165" width="150" height="55" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="135" y="198" fill="#E6EAF2" font-size="13" text-anchor="middle">scheduler</text>
+      <rect x="230" y="165" width="150" height="55" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="305" y="198" fill="#E6EAF2" font-size="12" text-anchor="middle">controller-mgr</text>
+      <text x="220" y="350" fill="#9AA4B8" font-size="12" text-anchor="middle">EKS ではマネージド提供（AWS 管理）</text>
+      <rect x="490" y="40" width="380" height="340" rx="12" fill="#0F1420" stroke="#22C55E" stroke-width="1.5"/>
+      <text x="680" y="70" fill="#22C55E" font-size="15" font-weight="700" text-anchor="middle">データプレーン（実行）</text>
+      <rect x="515" y="95" width="165" height="195" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="597" y="120" fill="#E6EAF2" font-size="13" text-anchor="middle">Node 1</text>
+      <rect x="530" y="135" width="135" height="35" rx="5" fill="#1C2230" stroke="#2A3142" stroke-width="1"/>
+      <text x="597" y="157" fill="#9AA4B8" font-size="11" text-anchor="middle">kubelet</text>
+      <rect x="530" y="178" width="135" height="35" rx="5" fill="#1C2230" stroke="#2A3142" stroke-width="1"/>
+      <text x="597" y="200" fill="#9AA4B8" font-size="11" text-anchor="middle">kube-proxy</text>
+      <rect x="530" y="221" width="135" height="35" rx="5" fill="#1C2230" stroke="#4F8FFF" stroke-width="1"/>
+      <text x="597" y="243" fill="#9AA4B8" font-size="11" text-anchor="middle">Pod</text>
+      <rect x="690" y="95" width="165" height="195" rx="8" fill="#141923" stroke="#2A3142" stroke-width="1.5"/>
+      <text x="772" y="120" fill="#E6EAF2" font-size="13" text-anchor="middle">Node 2</text>
+      <rect x="705" y="135" width="135" height="35" rx="5" fill="#1C2230" stroke="#2A3142" stroke-width="1"/>
+      <text x="772" y="157" fill="#9AA4B8" font-size="11" text-anchor="middle">kubelet</text>
+      <rect x="705" y="178" width="135" height="35" rx="5" fill="#1C2230" stroke="#2A3142" stroke-width="1"/>
+      <text x="772" y="200" fill="#9AA4B8" font-size="11" text-anchor="middle">kube-proxy</text>
+      <rect x="705" y="221" width="135" height="35" rx="5" fill="#1C2230" stroke="#4F8FFF" stroke-width="1"/>
+      <text x="772" y="243" fill="#9AA4B8" font-size="11" text-anchor="middle">Pod</text>
+      <text x="680" y="350" fill="#9AA4B8" font-size="12" text-anchor="middle">EC2 / Fargate に相当</text>
+      <polyline points="410,210 490,210" fill="none" stroke="#9AA4B8" stroke-width="1.5" marker-end="url(#m6a)"/>
+      <text x="450" y="198" fill="#9AA4B8" font-size="12" text-anchor="middle">指示</text>
+      <defs>
+        <marker id="m6a" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA4B8"/></marker>
+      </defs>
+    </svg>
+  </div>
+  <div class="page-num">06</div>
+</section>
+
+<!-- ===== 07 type-compare ===== -->
+<section class="slide type-compare">
+  <div class="heading-accent-bar"><h2>運用タスクは手動から自動へ</h2></div>
+  <table class="compare-table">
+    <thead><tr><th>運用タスク</th><th>コンテナ単体</th><th>Kubernetes</th></tr></thead>
+    <tbody>
+      <tr><td>障害復旧</td><td>運用者が手動で再起動</td><td class="highlight">自己修復で自動再作成</td></tr>
+      <tr><td>スケール</td><td>手作業でコピー</td><td class="highlight">HPA で自動増減</td></tr>
+      <tr><td>更新</td><td>全停止してから入替</td><td class="highlight">ローリング更新</td></tr>
+      <tr><td>配置</td><td>どこに置くか人が判断</td><td class="highlight">scheduler が自動配置</td></tr>
+    </tbody>
+  </table>
+  <p class="lead" style="margin-top:28px;font-size:15px;">AWS で言えば ECS Service Auto Scaling や Service Scheduler に相当する自動化を、クラウド非依存で実現する。</p>
+  <div class="page-num">07</div>
+</section>
+
+<!-- ===== 08 type-summary (まとめ) ===== -->
+<section class="slide type-summary">
+  <div class="heading-accent-bar"><h2>まとめ</h2></div>
+  <div class="card-row">
+    <div class="card"><div class="card-num">01</div><h3>オーケストレーション必須</h3><p>コンテナ単体運用は復旧もスケールも限界。自動化の仕組みが要る</p></div>
+    <div class="card"><div class="card-num">02</div><h3>宣言的＋調整ループ</h3><p>望ましい状態を宣言すれば、頭脳（CP）と実行（DP）が差分を埋め続ける</p></div>
+    <div class="card"><div class="card-num">03</div><h3>ポータビリティ</h3><p>どのクラウドでも同じスキルが活きる。AWS 知識を踏み台に学べる</p></div>
+  </div>
+  <div class="page-num">08</div>
+</section>
+
+</div>
+
+<!-- Navigation -->
+<div class="slide-nav">
+  <button id="prevBtn" onclick="go(-1)">‹</button>
+  <button id="nextBtn" onclick="go(1)">›</button>
+</div>
+
+<script>
+let current = 0;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+function render() {
+  slides.forEach((s, i) => s.style.display = i === current ? 'flex' : 'none');
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === total - 1;
+}
+function go(d) { current = Math.max(0, Math.min(total - 1, current + d)); render(); }
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft') go(-1);
+});
+render();
+</script>
+</body>
+</html>
